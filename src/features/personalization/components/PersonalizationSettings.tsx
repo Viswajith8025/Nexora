@@ -1,0 +1,402 @@
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import type { ContentCategory } from '@/types/database'
+import { useAuth } from '@/hooks/use-auth'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { TagInput } from '@/features/personalization/components/TagInput'
+import {
+  fetchFollowedTopics,
+  fetchUserInterests,
+  replaceFollowedTopics,
+  replaceInterestsByType,
+} from '@/features/personalization/api/interests'
+import { updateProfileSettings } from '@/features/personalization/api/profile'
+import { disconnectGmail, startGmailOAuth } from '@/features/admin/api/health'
+
+const CATEGORIES: ContentCategory[] = [
+  'AI',
+  'Development',
+  'Cloud',
+  'Security',
+  'Developer Tools',
+  'Databases',
+  'Technology Industry',
+]
+
+const TIMEZONES = [
+  'UTC',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'Europe/London',
+  'Europe/Berlin',
+  'Asia/Kolkata',
+  'Asia/Singapore',
+  'Asia/Tokyo',
+  'Australia/Sydney',
+]
+
+export function PersonalizationSettings() {
+  const { user, profile, refreshProfile } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [categories, setCategories] = useState<string[]>([])
+  const [technologies, setTechnologies] = useState<string[]>([])
+  const [companies, setCompanies] = useState<string[]>([])
+  const [topics, setTopics] = useState<string[]>([])
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!user) return
+    void fetchUserInterests(user.id).then((interests) => {
+      setCategories(interests.filter((item) => item.interest_type === 'category').map((item) => item.value))
+      setTechnologies(interests.filter((item) => item.interest_type === 'technology').map((item) => item.value))
+      setCompanies(interests.filter((item) => item.interest_type === 'company').map((item) => item.value))
+    })
+    void fetchFollowedTopics(user.id).then(setTopics)
+  }, [user?.id])
+
+  useEffect(() => {
+    if (searchParams.get('gmail') === 'connected') {
+      setMessage('Gmail connected successfully. Digests will also be sent to your inbox.')
+      void refreshProfile()
+      const next = new URLSearchParams(searchParams)
+      next.delete('gmail')
+      setSearchParams(next, { replace: true })
+    }
+  }, [searchParams, setSearchParams, refreshProfile])
+
+  async function connectGmail() {
+    setSaving(true)
+    setMessage(null)
+    try {
+      const authUrl = await startGmailOAuth()
+      window.location.href = authUrl
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to start Gmail connection')
+      setSaving(false)
+    }
+  }
+
+  async function handleDisconnectGmail() {
+    if (!user) return
+    setSaving(true)
+    setMessage(null)
+    try {
+      await disconnectGmail(user.id)
+      await refreshProfile()
+      setMessage('Gmail disconnected.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to disconnect Gmail')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveInterests() {
+    if (!user) return
+    setSaving(true)
+    setMessage(null)
+    try {
+      await Promise.all([
+        replaceInterestsByType(user.id, 'category', categories),
+        replaceInterestsByType(user.id, 'technology', technologies),
+        replaceInterestsByType(user.id, 'company', companies),
+        replaceFollowedTopics(user.id, topics),
+      ])
+      setMessage('Interests saved. Future scoring will reflect these preferences.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to save interests')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveProfile(updates: Parameters<typeof updateProfileSettings>[1]) {
+    if (!user) return
+    setSaving(true)
+    setMessage(null)
+    try {
+      await updateProfileSettings(user.id, updates)
+      await refreshProfile()
+      setMessage('Settings updated.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to save settings')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!user || !profile) {
+    return (
+      <Card>
+        <CardContent className="py-6 text-sm text-muted-foreground">Sign in to configure personalization.</CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Interests</CardTitle>
+          <CardDescription>Transparent scoring uses these to boost matching stories.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Categories</p>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIES.map((category) => {
+                const active = categories.includes(category)
+                return (
+                  <Button
+                    key={category}
+                    type="button"
+                    size="sm"
+                    variant={active ? 'default' : 'outline'}
+                    onClick={() => {
+                      setCategories((current) =>
+                        active ? current.filter((item) => item !== category) : [...current, category],
+                      )
+                    }}
+                  >
+                    {category}
+                  </Button>
+                )
+              })}
+            </div>
+          </div>
+
+          <TagInput
+            label="Technologies"
+            description="Frameworks, languages, and tools you care about."
+            values={technologies}
+            onChange={setTechnologies}
+            placeholder="e.g. react, postgres, rust"
+          />
+
+          <TagInput
+            label="Companies"
+            description="Vendors and organizations to track."
+            values={companies}
+            onChange={setCompanies}
+            placeholder="e.g. OpenAI, Vercel"
+          />
+
+          <TagInput
+            label="Topics"
+            description="Broader themes followed for topic relevance."
+            values={topics}
+            onChange={setTopics}
+            placeholder="e.g. llm, devops"
+          />
+
+          <Button onClick={() => { void saveInterests() }} disabled={saving}>
+            {saving ? 'Saving…' : 'Save interests'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Notifications</CardTitle>
+          <CardDescription>Control when and how Nexora reaches you.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="threshold">Notification threshold ({profile.notification_threshold ?? 55})</Label>
+            <input
+              id="threshold"
+              type="range"
+              min={30}
+              max={90}
+              step={5}
+              value={profile.notification_threshold ?? 55}
+              onChange={(event) => {
+                void saveProfile({ notification_threshold: Number(event.target.value) })
+              }}
+              className="w-full"
+            />
+            <p className="text-xs text-muted-foreground">
+              Only stories scoring above this threshold are eligible for digests and alerts.
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="breaking">Breaking alerts</Label>
+            <Switch
+              id="breaking"
+              checked={profile.breaking_alerts_enabled}
+              onCheckedChange={(checked) => { void saveProfile({ breaking_alerts_enabled: checked }) }}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="morning">Morning digest</Label>
+            <Switch
+              id="morning"
+              checked={profile.morning_digest_enabled}
+              onCheckedChange={(checked) => { void saveProfile({ morning_digest_enabled: checked }) }}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="evening">Evening digest</Label>
+            <Switch
+              id="evening"
+              checked={profile.evening_digest_enabled}
+              onCheckedChange={(checked) => { void saveProfile({ evening_digest_enabled: checked }) }}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="weekly">Weekly digest</Label>
+            <Switch
+              id="weekly"
+              checked={profile.weekly_digest_enabled}
+              onCheckedChange={(checked) => { void saveProfile({ weekly_digest_enabled: checked }) }}
+            />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="morning-hour">Morning digest hour</Label>
+              <Input
+                id="morning-hour"
+                type="number"
+                min={0}
+                max={23}
+                value={profile.morning_digest_hour ?? 8}
+                onChange={(event) => {
+                  void saveProfile({ morning_digest_hour: Number(event.target.value) })
+                }}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="evening-hour">Evening digest hour</Label>
+              <Input
+                id="evening-hour"
+                type="number"
+                min={0}
+                max={23}
+                value={profile.evening_digest_hour ?? 19}
+                onChange={(event) => {
+                  void saveProfile({ evening_digest_hour: Number(event.target.value) })
+                }}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Delivery channels</CardTitle>
+          <CardDescription>Telegram is primary. Gmail is an optional secondary channel for digests.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <Label htmlFor="telegram">Telegram (primary)</Label>
+              <p className="text-xs text-muted-foreground">
+                {profile.telegram_chat_id ? 'Linked — use /brief in Telegram' : 'Link via Telegram bot to enable'}
+              </p>
+            </div>
+            <Switch
+              id="telegram"
+              checked={profile.telegram_enabled}
+              disabled={!profile.telegram_chat_id}
+              onCheckedChange={(checked) => { void saveProfile({ telegram_enabled: checked }) }}
+            />
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <Label htmlFor="gmail">Gmail (optional)</Label>
+              <p className="text-xs text-muted-foreground">
+                {profile.gmail_address
+                  ? `Connected as ${profile.gmail_address}`
+                  : 'Receive morning, evening, and weekly digests by email'}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {profile.gmail_address ? (
+                <>
+                  <Switch
+                    id="gmail"
+                    checked={profile.gmail_enabled}
+                    onCheckedChange={(checked) => { void saveProfile({ gmail_enabled: checked }) }}
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={() => { void handleDisconnectGmail() }} disabled={saving}>
+                    Disconnect
+                  </Button>
+                </>
+              ) : (
+                <Button type="button" size="sm" onClick={() => { void connectGmail() }} disabled={saving}>
+                  Connect Gmail
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Timezone & quiet hours</CardTitle>
+          <CardDescription>Used for digest scheduling and breaking alert quiet periods.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1">
+            <Label htmlFor="timezone">Timezone</Label>
+            <select
+              id="timezone"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              value={profile.timezone}
+              onChange={(event) => { void saveProfile({ timezone: event.target.value }) }}
+            >
+              {TIMEZONES.map((timezone) => (
+                <option key={timezone} value={timezone}>{timezone}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="quiet-hours">Quiet hours</Label>
+            <Switch
+              id="quiet-hours"
+              checked={profile.quiet_hours_enabled}
+              onCheckedChange={(checked) => { void saveProfile({ quiet_hours_enabled: checked }) }}
+            />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="quiet-start">Quiet start</Label>
+              <Input
+                id="quiet-start"
+                type="time"
+                value={profile.quiet_hours_start?.slice(0, 5) ?? '22:00'}
+                disabled={!profile.quiet_hours_enabled}
+                onChange={(event) => { void saveProfile({ quiet_hours_start: `${event.target.value}:00` }) }}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="quiet-end">Quiet end</Label>
+              <Input
+                id="quiet-end"
+                type="time"
+                value={profile.quiet_hours_end?.slice(0, 5) ?? '07:00'}
+                disabled={!profile.quiet_hours_enabled}
+                onChange={(event) => { void saveProfile({ quiet_hours_end: `${event.target.value}:00` }) }}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

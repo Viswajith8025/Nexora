@@ -1,0 +1,2 @@
+-- Seed data will be added when the database schema is implemented.
+-- This file is intentionally empty for the foundation phase.
