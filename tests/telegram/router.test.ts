@@ -55,18 +55,23 @@ function createMockSupabase() {
 
 function createMockTelegram() {
   const sendMessage = vi.fn(async () => ({}))
-  const sendMessages = vi.fn(async (_chatId: string, messages: string[]) => {
-    for (const _message of messages) {
-      await sendMessage()
-    }
-  })
   return {
     telegram: {
       sendMessage,
-      sendMessages,
     } as unknown as TelegramClient,
     sendMessage,
-    sendMessages,
+  }
+}
+
+function createMockGroq() {
+  return {
+    name: 'groq' as const,
+    getModelForTask: () => 'openai/gpt-oss-120b',
+    complete: vi.fn(async () => ({
+      content: '{"summary":"test","sections":[]}',
+      model: 'openai/gpt-oss-120b',
+      provider: 'groq' as const,
+    })),
   }
 }
 
@@ -82,7 +87,7 @@ describe('processTelegramUpdate', () => {
   })
 
   it('handles /help command', async () => {
-    const { telegram, sendMessages } = createMockTelegram()
+    const { telegram, sendMessage } = createMockTelegram()
     const result = await processTelegramUpdate(
       createMockSupabase() as unknown as SupabaseClient,
       telegram,
@@ -98,19 +103,17 @@ describe('processTelegramUpdate', () => {
     )
 
     expect(result.handled).toBe(true)
-    expect(sendMessages).toHaveBeenCalled()
+    expect(sendMessage).toHaveBeenCalled()
   })
 
   it('handles natural language messages', async () => {
-    const { telegram, sendMessages } = createMockTelegram()
-    const groq = {
-      name: 'groq' as const,
-      complete: vi.fn(async () => ({
-        content: 'AI had several important updates today.',
-        model: 'llama-3.3-70b-versatile',
-        provider: 'groq' as const,
-      })),
-    }
+    const { telegram, sendMessage } = createMockTelegram()
+    const groq = createMockGroq()
+    groq.complete = vi.fn(async () => ({
+      content: 'AI had several important updates today.',
+      model: 'openai/gpt-oss-120b',
+      provider: 'groq' as const,
+    }))
 
     const result = await processTelegramUpdate(
       createMockSupabase() as unknown as SupabaseClient,
@@ -128,19 +131,17 @@ describe('processTelegramUpdate', () => {
     )
 
     expect(result.handled).toBe(true)
-    expect(sendMessages).toHaveBeenCalled()
+    expect(sendMessage).toHaveBeenCalled()
   })
 
   it('handles command arguments', async () => {
     const { telegram } = createMockTelegram()
-    const groq = {
-      name: 'groq' as const,
-      complete: vi.fn(async () => ({
-        content: 'MCP is a protocol for connecting AI to tools.',
-        model: 'llama-3.3-70b-versatile',
-        provider: 'groq' as const,
-      })),
-    }
+    const groq = createMockGroq()
+    groq.complete = vi.fn(async () => ({
+      content: 'MCP is a protocol for connecting AI to tools.',
+      model: 'openai/gpt-oss-120b',
+      provider: 'groq' as const,
+    }))
 
     const result = await processTelegramUpdate(
       createMockSupabase() as unknown as SupabaseClient,
@@ -171,14 +172,12 @@ describe('processTelegramUpdate', () => {
         .mockRejectedValueOnce(new Error('Telegram down')),
     } as unknown as TelegramClient
 
-    const groq = {
-      name: 'groq' as const,
-      complete: vi.fn(async () => ({
-        content: 'Answer',
-        model: 'llama-3.3-70b-versatile',
-        provider: 'groq' as const,
-      })),
-    }
+    const groq = createMockGroq()
+    groq.complete = vi.fn(async () => ({
+      content: 'Answer',
+      model: 'openai/gpt-oss-120b',
+      provider: 'groq' as const,
+    }))
 
     const result = await processTelegramUpdate(
       createMockSupabase() as unknown as SupabaseClient,

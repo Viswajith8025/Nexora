@@ -2,6 +2,11 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { dispatchCommand, buildHandlerContext } from '../../supabase/functions/_shared/telegram/handlers.ts'
+import { normalizeOutboundMessage } from '../../supabase/functions/_shared/telegram/types.ts'
+
+function messageTexts(messages: Array<string | import('../../supabase/functions/_shared/telegram/types.ts').TelegramOutboundMessage>) {
+  return messages.map((message) => normalizeOutboundMessage(message).text)
+}
 
 function createMockSupabase(options?: { profile?: Record<string, unknown> | null }) {
   const articles = [
@@ -81,41 +86,41 @@ describe('telegram commands', () => {
     const supabase = createMockSupabase()
     const ctx = await buildHandlerContext(supabase as unknown as SupabaseClient, '12345')
     const result = await dispatchCommand(ctx, 'help', '')
-    expect(result.messages[0]).toMatch(/Commands/)
+    expect(messageTexts(result.messages)[0]).toMatch(/Nexora|\/today/i)
   })
 
   it('returns welcome for /start without token', async () => {
     const supabase = createMockSupabase()
     const ctx = await buildHandlerContext(supabase as unknown as SupabaseClient, '12345')
     const result = await dispatchCommand(ctx, 'start', '')
-    expect(result.messages[0]).toMatch(/Welcome/)
+    expect(messageTexts(result.messages)[0]).toMatch(/Welcome/)
   })
 
   it('links account with /start token', async () => {
     const supabase = createMockSupabase()
     const ctx = await buildHandlerContext(supabase as unknown as SupabaseClient, '12345')
     const result = await dispatchCommand(ctx, 'start', 'valid-token')
-    expect(result.messages[0]).toMatch(/linked/i)
+    expect(messageTexts(result.messages)[0]).toMatch(/linked/i)
   })
 
   it('requires args for /learn', async () => {
     const supabase = createMockSupabase()
     const ctx = await buildHandlerContext(supabase as unknown as SupabaseClient, '12345')
     const result = await dispatchCommand(ctx, 'learn', '')
-    expect(result.messages[0]).toMatch(/Example/)
+    expect(messageTexts(result.messages)[0]).toMatch(/Example/)
   })
 
   it('returns today digest articles', async () => {
     const supabase = createMockSupabase()
     const ctx = await buildHandlerContext(supabase as unknown as SupabaseClient, '12345')
     const result = await dispatchCommand(ctx, 'today', '')
-    expect(result.messages.join(' ')).toMatch(/GPT-5|today/i)
+    expect(messageTexts(result.messages).join(' ')).toMatch(/GPT-5|today/i)
   })
 
   it('requires linked account for /saved', async () => {
     const supabase = createMockSupabase({ profile: null })
     const ctx = await buildHandlerContext(supabase as unknown as SupabaseClient, '12345')
     const result = await dispatchCommand(ctx, 'saved', '')
-    expect(result.messages[0]).toMatch(/Link your Nexora account/)
+    expect(messageTexts(result.messages)[0]).toMatch(/Link your Nexora account/)
   })
 })

@@ -86,16 +86,23 @@ export function HomePage() {
 
       <Card className="border-dashed">
         <CardHeader>
-          <CardTitle className="text-base">Database & Auth Ready</CardTitle>
+          <CardTitle className="text-base">Daily intelligence, where you work</CardTitle>
           <CardDescription>
-            Core schema, RLS policies, and Supabase authentication are in place. Ingestion, AI
-            analysis, and Telegram delivery will be built in later phases.
+            Nexora ingests tech news, filters noise, and explains what matters for developers — delivered
+            on Telegram (recommended) or email each morning.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Configure <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">.env</code>{' '}
-            with your Supabase project credentials to enable authentication.
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p>
+            1. Sign up and open <strong>Settings</strong> → link Telegram → enable morning digest.
+          </p>
+          <p>
+            2. Optionally connect Gmail for the same digest in your inbox.
+          </p>
+          <p>
+            3. Use <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">/brief</code> or{' '}
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">/latest</code> in Telegram
+            anytime for AI summaries with context.
           </p>
         </CardContent>
       </Card>

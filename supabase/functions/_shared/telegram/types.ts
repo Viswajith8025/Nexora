@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'npm:zod@3.23.8'
 
 export const telegramUserSchema = z.object({
   id: z.number(),
@@ -20,10 +20,38 @@ export const telegramMessageSchema = z.object({
   text: z.string().optional(),
 })
 
+export const telegramCallbackQuerySchema = z.object({
+  id: z.string(),
+  from: telegramUserSchema,
+  message: telegramMessageSchema.optional(),
+  data: z.string().optional(),
+})
+
 export const telegramUpdateSchema = z.object({
   update_id: z.number(),
   message: telegramMessageSchema.optional(),
+  callback_query: telegramCallbackQuerySchema.optional(),
 })
+
+export type TelegramInlineButton = {
+  text: string
+  url?: string
+  callbackData?: string
+}
+
+export type TelegramInlineKeyboard = TelegramInlineButton[][]
+
+export type TelegramOutboundMessage = {
+  text: string
+  keyboard?: TelegramInlineKeyboard
+  disableWebPagePreview?: boolean
+}
+
+export function normalizeOutboundMessage(
+  message: string | TelegramOutboundMessage,
+): TelegramOutboundMessage {
+  return typeof message === 'string' ? { text: message } : message
+}
 
 export type TelegramUpdate = z.infer<typeof telegramUpdateSchema>
 export type TelegramMessage = z.infer<typeof telegramMessageSchema>
@@ -70,8 +98,8 @@ export type ArticleSummary = {
 }
 
 export type HandlerResult = {
-  messages: string[]
-  research?: () => Promise<string[]>
+  messages: Array<string | TelegramOutboundMessage>
+  research?: () => Promise<Array<string | TelegramOutboundMessage>>
 }
 
 export const TELEGRAM_MAX_MESSAGE_LENGTH = 4096

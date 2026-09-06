@@ -3,11 +3,12 @@ import { PageContainer } from '@/components/layout/PageContainer'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ErrorState } from '@/components/states/ErrorState'
 import { LoadingRegion } from '@/components/states/LoadingRegion'
+import { hasClientEnv } from '@/lib/config/env'
 import { fetchSystemHealth, type SystemHealth } from '@/features/admin/api/health'
 
 function Metric({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-lg border bg-card/60 p-4">
+    <div className="rounded-lg bg-ink-800 p-4">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-1 text-lg font-semibold tabular-nums">{value}</p>
     </div>
@@ -45,6 +46,7 @@ export function AdminHealthPage() {
         ) : health ? (
           <div className="space-y-6">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Metric label="Supabase client" value={hasClientEnv() ? 'Configured' : 'Missing'} />
               <Metric label="Articles today" value={health.articlesProcessedToday} />
               <Metric label="Notifications today" value={health.notificationsSentToday} />
               <Metric label="AI calls today" value={health.aiUsage.calls} />

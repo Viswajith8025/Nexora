@@ -26,10 +26,11 @@ export async function analyzeArticle(
   provider: AIProvider & Partial<GroqProvider>,
   article: ArticleRecord,
 ): Promise<AnalyzeResult> {
-  const model =
-    typeof provider.getModelForTask === 'function'
-      ? provider.getModelForTask('summary')
-      : 'llama-3.3-70b-versatile'
+  if (typeof provider.getModelForTask !== 'function') {
+    return { success: false, error: 'AI provider missing getModelForTask' }
+  }
+
+  const model = provider.getModelForTask('summary')
 
   let lastError = 'Unknown analysis error'
 

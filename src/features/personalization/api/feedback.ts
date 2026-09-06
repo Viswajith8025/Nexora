@@ -15,7 +15,8 @@ export async function fetchArticleFeedback(
     .eq('article_id', articleId)
 
   if (error) throw new Error(error.message)
-  return (data ?? []).map((row) => row.signal as FeedbackSignal)
+  type FeedbackRow = { signal: FeedbackSignal }
+  return ((data ?? []) as FeedbackRow[]).map((row) => row.signal)
 }
 
 export async function submitArticleFeedback(

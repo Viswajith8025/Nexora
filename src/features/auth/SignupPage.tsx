@@ -38,6 +38,11 @@ export function SignupPage() {
       return
     }
 
+    if (result.needsEmailConfirmation) {
+      setError('Account created. Check your email to confirm, then sign in.')
+      return
+    }
+
     void navigate(ROUTES.dashboard, { replace: true })
   }
 

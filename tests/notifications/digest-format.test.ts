@@ -49,7 +49,10 @@ const articles: DigestArticle[] = [
 ]
 
 describe('digest formatting', () => {
-  const baseArticle = articles[0]!
+  const baseArticle = articles[0]
+  if (!baseArticle) {
+    throw new Error('digest fixture missing base article')
+  }
 
   it('formats morning digest with required sections', () => {
     const digest = formatMorningDigest(articles)

@@ -14,32 +14,51 @@ export type SystemHealth = {
 
 type GmailOAuthResponse = { authUrl?: string }
 
+function invokeErrorMessage(error: unknown, context?: 'gmail'): string {
+  if (error instanceof Error) {
+    if (error.message.includes('Failed to fetch') || error.message.includes('FunctionsFetchError')) {
+      if (context === 'gmail') {
+        return 'Gmail connect is unavailable. The gmail-oauth function may not be deployed yet.'
+      }
+      return 'Could not reach the server. Check your connection and try again.'
+    }
+    return error.message
+  }
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = Reflect.get(error, 'message')
+    if (typeof message === 'string') return message
+  }
+  return 'Request failed'
+}
+
 export async function fetchSystemHealth(): Promise<SystemHealth> {
   const supabase = getSupabaseClientOrNull()
   if (!supabase) throw new Error('Supabase not configured')
 
-  const { data, error } = await supabase.functions.invoke<SystemHealth>('system-health')
-  if (error) throw new Error(error.message)
-  if (!data) throw new Error('No health data returned')
-  return data
+  const response = await supabase.functions.invoke<SystemHealth>('system-health')
+  if (response.error) throw new Error(invokeErrorMessage(response.error))
+  if (!response.data) throw new Error('No health data returned')
+  return response.data
 }
 
 export async function startGmailOAuth(): Promise<string> {
   const supabase = getSupabaseClientOrNull()
   if (!supabase) throw new Error('Supabase not configured')
 
-  const { data, error } = await supabase.functions.invoke<GmailOAuthResponse>('gmail-oauth')
-  if (error) throw new Error(error.message)
-  if (!data?.authUrl) throw new Error('Gmail OAuth URL not returned')
-  return data.authUrl
+  const response = await supabase.functions.invoke<GmailOAuthResponse>('gmail-oauth')
+  if (response.error) throw new Error(invokeErrorMessage(response.error, 'gmail'))
+  if (!response.data?.authUrl) {
+    throw new Error('Gmail is not configured on the server yet (missing Google OAuth secrets).')
+  }
+  return response.data.authUrl
 }
 
 export async function disconnectGmail(userId: string): Promise<void> {
   const supabase = getSupabaseClientOrNull()
   if (!supabase) throw new Error('Supabase not configured')
 
-  const { error } = await supabase.functions.invoke('gmail-oauth', { method: 'DELETE' })
-  if (error) throw new Error(error.message)
+  const response = await supabase.functions.invoke('gmail-oauth', { method: 'DELETE' })
+  if (response.error) throw new Error(invokeErrorMessage(response.error))
 
-  await supabase.from('profiles').update({ gmail_enabled: false, gmail_address: null }).eq('id', userId)
+  await supabase.from('profiles').update({ gmail_enabled: false }).eq('id', userId)
 }

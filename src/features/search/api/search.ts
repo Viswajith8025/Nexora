@@ -2,7 +2,7 @@ import type { ContentCategory } from '@/types/database'
 import { getSupabaseClientOrNull } from '@/lib/supabase/client'
 import { sanitizeSearchTerm } from '@/lib/security/sanitize-search'
 import type { ArticleWithSource } from '@/features/articles/types'
-import { dedupeByCluster } from '@/features/articles/api/articles'
+import { dedupeByCluster, ARTICLE_SOURCE_EMBED } from '@/features/articles/api/articles'
 
 export type SearchFilters = {
   query: string
@@ -30,7 +30,7 @@ const ARTICLE_SELECT = `
   ai_summary, one_sentence_takeaway, what_happened, why_it_matters, developer_impact,
   technical_impact, who_should_care, recommended_action, importance_score,
   developer_relevance_score, relevance_score, relevance_decision, novelty_score,
-  cluster_key, notification_level, verification_status, source:sources ( name )
+  cluster_key, notification_level, verification_status, ${ARTICLE_SOURCE_EMBED}
 `
 
 function normalizeArticle(row: unknown): ArticleWithSource {

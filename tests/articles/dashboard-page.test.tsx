@@ -47,10 +47,11 @@ describe('DashboardPage', () => {
     })
   })
 
-  it('renders Nexora greeting', () => {
+  it('renders dashboard heading and empty state', () => {
     renderDashboard()
-    expect(screen.getByText(/NEXORA/i)).toBeInTheDocument()
-    expect(screen.getByText(/Alex/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
+    expect(screen.getByText('No articles yet')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'All news' })).toBeInTheDocument()
   })
 
   it('shows loading skeleton when loading', () => {

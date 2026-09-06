@@ -225,6 +225,28 @@ export type Database = {
         Update: Partial<ArticleUserRelevance>
         Relationships: []
       }
+      telegram_link_tokens: {
+        Row: {
+          id: string
+          user_id: string
+          token: string
+          expires_at: string
+          used_at: string | null
+          created_at: string
+        }
+        Insert: {
+          user_id: string
+          token: string
+          expires_at: string
+          id?: string
+          used_at?: string | null
+          created_at?: string
+        }
+        Update: Partial<{
+          used_at: string | null
+        }>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>

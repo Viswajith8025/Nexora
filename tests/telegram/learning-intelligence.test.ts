@@ -51,6 +51,7 @@ describe('intelligence schema', () => {
     expect(formatted).toMatch(/Verified/)
     expect(formatted).toMatch(/Opinion/)
     expect(formatted).toMatch(/88\/100/)
+    expect(formatted).toContain('<b>')
   })
 })
 

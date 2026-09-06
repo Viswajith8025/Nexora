@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { ContentCategory } from '@/types/database'
 import { useAuth } from '@/hooks/use-auth'
@@ -16,6 +16,12 @@ import {
 } from '@/features/personalization/api/interests'
 import { updateProfileSettings } from '@/features/personalization/api/profile'
 import { disconnectGmail, startGmailOAuth } from '@/features/admin/api/health'
+import {
+  buildTelegramStartUrl,
+  createTelegramLinkToken,
+  getTelegramBotUsername,
+} from '@/features/personalization/api/telegram'
+import { previewMorningDigest } from '@/features/personalization/api/digest-preview'
 
 const CATEGORIES: ContentCategory[] = [
   'AI',
@@ -50,6 +56,15 @@ export function PersonalizationSettings() {
   const [topics, setTopics] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [linkToken, setLinkToken] = useState<string | null>(null)
+  const [linkExpiresAt, setLinkExpiresAt] = useState<string | null>(null)
+  const [digestPreview, setDigestPreview] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [threshold, setThreshold] = useState(55)
+  const [morningHour, setMorningHour] = useState(8)
+  const [eveningHour, setEveningHour] = useState(19)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const botUsername = getTelegramBotUsername()
 
   useEffect(() => {
     if (!user) return
@@ -60,6 +75,13 @@ export function PersonalizationSettings() {
     })
     void fetchFollowedTopics(user.id).then(setTopics)
   }, [user?.id])
+
+  useEffect(() => {
+    if (!profile) return
+    setThreshold(profile.notification_threshold ?? 55)
+    setMorningHour(profile.morning_digest_hour ?? 8)
+    setEveningHour(profile.evening_digest_hour ?? 19)
+  }, [profile])
 
   useEffect(() => {
     if (searchParams.get('gmail') === 'connected') {
@@ -85,6 +107,7 @@ export function PersonalizationSettings() {
 
   async function handleDisconnectGmail() {
     if (!user) return
+    if (!window.confirm('Disconnect Gmail from Nexora digests?')) return
     setSaving(true)
     setMessage(null)
     try {
@@ -130,6 +153,51 @@ export function PersonalizationSettings() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const scheduleProfileSave = useCallback(
+    (updates: Parameters<typeof updateProfileSettings>[1]) => {
+      if (!user) return
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = setTimeout(() => {
+        void (async () => {
+          setSaving(true)
+          setMessage(null)
+          try {
+            await updateProfileSettings(user.id, updates)
+            await refreshProfile()
+          } catch (error) {
+            setMessage(error instanceof Error ? error.message : 'Failed to save settings')
+          } finally {
+            setSaving(false)
+          }
+        })()
+      }, 400)
+    },
+    [user, refreshProfile],
+  )
+
+  async function generateTelegramLink() {
+    if (!user) return
+    setSaving(true)
+    setMessage(null)
+    try {
+      const result = await createTelegramLinkToken(user.id)
+      setLinkToken(result.token)
+      setLinkExpiresAt(result.expiresAt)
+      setMessage('Link token generated. Open Telegram within 15 minutes.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to generate Telegram link')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function copyTelegramCommand() {
+    if (!linkToken) return
+    const command = `/start ${linkToken}`
+    await navigator.clipboard.writeText(command)
+    setMessage('Copied /start command. Paste it in your Telegram chat with the Nexora bot.')
   }
 
   if (!user || !profile) {
@@ -211,22 +279,46 @@ export function PersonalizationSettings() {
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="threshold">Notification threshold ({profile.notification_threshold ?? 55})</Label>
+            <Label htmlFor="threshold">Notification threshold ({threshold})</Label>
             <input
               id="threshold"
               type="range"
               min={30}
               max={90}
               step={5}
-              value={profile.notification_threshold ?? 55}
+              value={threshold}
               onChange={(event) => {
-                void saveProfile({ notification_threshold: Number(event.target.value) })
+                const value = Number(event.target.value)
+                setThreshold(value)
+                scheduleProfileSave({ notification_threshold: value })
               }}
               className="w-full"
             />
             <p className="text-xs text-muted-foreground">
               Only stories scoring above this threshold are eligible for digests and alerts.
             </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={previewLoading}
+              onClick={() => {
+                setPreviewLoading(true)
+                void previewMorningDigest(threshold)
+                  .then(setDigestPreview)
+                  .catch((error: unknown) => {
+                    setDigestPreview(error instanceof Error ? error.message : 'Preview failed')
+                  })
+                  .finally(() => setPreviewLoading(false))
+              }}
+            >
+              {previewLoading ? 'Generating…' : "Preview tomorrow's morning digest"}
+            </Button>
+            {digestPreview ? (
+              <pre className="max-h-64 overflow-auto rounded-lg bg-ink-700/60 p-3 text-xs whitespace-pre-wrap text-muted-foreground">
+                {digestPreview}
+              </pre>
+            ) : null}
           </div>
 
           <div className="flex items-center justify-between gap-4">
@@ -270,9 +362,11 @@ export function PersonalizationSettings() {
                 type="number"
                 min={0}
                 max={23}
-                value={profile.morning_digest_hour ?? 8}
+                value={morningHour}
                 onChange={(event) => {
-                  void saveProfile({ morning_digest_hour: Number(event.target.value) })
+                  const value = Number(event.target.value)
+                  setMorningHour(value)
+                  scheduleProfileSave({ morning_digest_hour: value })
                 }}
               />
             </div>
@@ -283,9 +377,11 @@ export function PersonalizationSettings() {
                 type="number"
                 min={0}
                 max={23}
-                value={profile.evening_digest_hour ?? 19}
+                value={eveningHour}
                 onChange={(event) => {
-                  void saveProfile({ evening_digest_hour: Number(event.target.value) })
+                  const value = Number(event.target.value)
+                  setEveningHour(value)
+                  scheduleProfileSave({ evening_digest_hour: value })
                 }}
               />
             </div>
@@ -296,23 +392,69 @@ export function PersonalizationSettings() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Delivery channels</CardTitle>
-          <CardDescription>Telegram is primary. Gmail is an optional secondary channel for digests.</CardDescription>
+          <CardDescription>
+            Telegram is the fastest way to get daily developer intelligence. Email is optional.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <Label htmlFor="telegram">Telegram (primary)</Label>
-              <p className="text-xs text-muted-foreground">
-                {profile.telegram_chat_id ? 'Linked — use /brief in Telegram' : 'Link via Telegram bot to enable'}
-              </p>
+          <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <Label>Telegram (recommended)</Label>
+                <p className="text-xs text-muted-foreground">
+                  {profile.telegram_chat_id
+                    ? 'Linked — morning digest and /brief, /latest, /learn in Telegram'
+                    : 'Link once, then get daily digests and on-demand briefings'}
+                </p>
+              </div>
+              <Switch
+                id="telegram"
+                checked={profile.telegram_enabled}
+                disabled={!profile.telegram_chat_id}
+                onCheckedChange={(checked) => { void saveProfile({ telegram_enabled: checked }) }}
+              />
             </div>
-            <Switch
-              id="telegram"
-              checked={profile.telegram_enabled}
-              disabled={!profile.telegram_chat_id}
-              onCheckedChange={(checked) => { void saveProfile({ telegram_enabled: checked }) }}
-            />
+
+            {!profile.telegram_chat_id ? (
+              <div className="space-y-2">
+                <Button type="button" size="sm" onClick={() => { void generateTelegramLink() }} disabled={saving}>
+                  Generate link token
+                </Button>
+                {linkToken ? (
+                  <div className="space-y-2 text-sm">
+                    <p className="font-mono text-xs break-all rounded bg-background px-2 py-1">{linkToken}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Expires {linkExpiresAt ? new Date(linkExpiresAt).toLocaleTimeString() : 'soon'}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={() => { void copyTelegramCommand() }}>
+                        Copy /start command
+                      </Button>
+                      {buildTelegramStartUrl(linkToken, botUsername) ? (
+                        <Button type="button" size="sm" asChild>
+                          <a
+                            href={buildTelegramStartUrl(linkToken, botUsername) ?? '#'}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Open in Telegram
+                          </a>
+                        </Button>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Set <code className="font-mono">VITE_TELEGRAM_BOT_USERNAME</code> for one-tap open.
+                        </p>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      In Telegram, send <span className="font-mono">/start {linkToken}</span> to your Nexora bot.
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
+
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <Label htmlFor="gmail">Gmail (optional)</Label>

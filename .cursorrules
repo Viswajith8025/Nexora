@@ -1,0 +1,23 @@
+# Nexora — Cursor rules
+
+Read `CLAUDE.md` before making changes.
+
+## Conventions (summary)
+
+See `CLAUDE.md` for full detail. In short:
+
+- Server secrets stay server-side; browser uses anon key + RLS only.
+- `VITE_` prefix means public bundle — never for secrets.
+- RLS on all tables. Zod at boundaries. External content is untrusted.
+- No hardcoded model IDs, thresholds, or secrets.
+- Real-behaviour tests. Focused diffs. Never commit unless asked.
+
+## Build plan
+
+Run phases from `BUILD_SEQUENCE.md` one at a time, in order.
+
+After each phase:
+
+```bash
+npm run typecheck && npm run build && npm test
+```

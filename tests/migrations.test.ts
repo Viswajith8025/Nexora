@@ -44,6 +44,8 @@ describe('database migrations', () => {
     expect(migrationFiles).toContain('20250905000009_personalization.sql')
     expect(migrationFiles).toContain('20250905000010_learning_memory.sql')
     expect(migrationFiles).toContain('20250905000011_integrations.sql')
+    expect(migrationFiles).toContain('20250905000012_profile_security.sql')
+    expect(migrationFiles).toContain('20250905000013_telegram_chat_history.sql')
   })
 
   it('creates all required tables', () => {
@@ -124,5 +126,15 @@ describe('database migrations', () => {
     expect(integrationsSql).toMatch(/gmail_connections/i)
     expect(integrationsSql).toMatch(/is_admin/i)
     expect(integrationsSql).toMatch(/never automatically deleted/i)
+  })
+
+  it('protects privileged profile columns from client updates', () => {
+    const securitySql = readFileSync(
+      join(migrationsDir, '20250905000012_profile_security.sql'),
+      'utf-8',
+    )
+    expect(securitySql).toMatch(/protect_profile_privileged_columns/i)
+    expect(securitySql).toMatch(/is_admin/i)
+    expect(securitySql).toMatch(/telegram_chat_id/i)
   })
 })

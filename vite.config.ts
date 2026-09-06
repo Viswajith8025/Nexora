@@ -15,8 +15,8 @@ export default defineConfig({
         name: 'Nexora',
         short_name: 'Nexora',
         description: 'Personal Technology Intelligence',
-        theme_color: '#0b1220',
-        background_color: '#0b1220',
+        theme_color: '#0d1416',
+        background_color: '#0d1416',
         display: 'standalone',
         orientation: 'portrait-primary',
         start_url: '/',
@@ -43,12 +43,16 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         navigateFallback: '/index.html',
+        navigationPreload: false,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
             handler: 'NetworkOnly',
           },
         ],
+      },
+      devOptions: {
+        enabled: false,
       },
     }),
   ],
@@ -58,6 +62,7 @@ export default defineConfig({
     },
   },
   build: {
+    modulePreload: false,
     rollupOptions: {
       output: {
         manualChunks(id) {

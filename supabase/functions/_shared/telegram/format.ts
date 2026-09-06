@@ -1,5 +1,15 @@
 import { TELEGRAM_MAX_MESSAGE_LENGTH } from './types.ts'
+import type { TelegramInlineKeyboard, TelegramOutboundMessage } from './types.ts'
+import { emptyFeedKeyboard, articleSourceKeyboard, mainMenuKeyboard } from './keyboards.ts'
 
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+/** @deprecated Use escapeHtml — legacy Markdown helper kept for digest notifications */
 export function escapeMarkdown(text: string): string {
   return text.replace(/([_*`\[])/g, '\\$1')
 }
@@ -7,6 +17,16 @@ export function escapeMarkdown(text: string): string {
 export function truncate(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text
   return `${text.slice(0, maxLength - 1)}…`
+}
+
+export function formatPlainToHtml(text: string): string {
+  const escaped = escapeHtml(text.trim())
+
+  return escaped
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    .replace(/\*(.+?)\*/g, '<b>$1</b>')
+    .replace(/^[-•] (.+)$/gm, '• $1')
+    .replace(/\n{3,}/g, '\n\n')
 }
 
 export function splitTelegramMessage(
@@ -62,6 +82,18 @@ export function splitTelegramMessage(
   return chunks
 }
 
+export function toOutboundMessages(
+  text: string,
+  options?: { keyboard?: TelegramInlineKeyboard; disableWebPagePreview?: boolean },
+): TelegramOutboundMessage[] {
+  const chunks = splitTelegramMessage(text)
+  return chunks.map((chunk, index) => ({
+    text: chunk,
+    keyboard: index === chunks.length - 1 ? options?.keyboard : undefined,
+    disableWebPagePreview: options?.disableWebPagePreview,
+  }))
+}
+
 export function formatArticleAlert(
   article: {
     title: string
@@ -76,82 +108,130 @@ export function formatArticleAlert(
     ai_summary?: string | null
   },
   options?: { emoji?: string; label?: string },
-): string {
+): TelegramOutboundMessage {
   const emoji = options?.emoji ?? '📰'
   const label = options?.label ?? 'UPDATE'
   const score = article.relevance_score ?? article.importance_score ?? null
 
-  const keyPoints = [
-    article.one_sentence_takeaway,
-    article.ai_summary,
-  ].filter(Boolean) as string[]
+  const keyPoints = [article.one_sentence_takeaway, article.ai_summary].filter(Boolean) as string[]
 
   const sections = [
-    `${emoji} *${label}*`,
+    `${emoji} <b>${escapeHtml(label)}</b>`,
     '',
-    `*${escapeMarkdown(article.title)}*`,
-    score !== null ? `🔥 Importance: ${score}/100` : null,
+    `<b>${escapeHtml(article.title)}</b>`,
+    score !== null ? `🔥 Relevance: <b>${score}/100</b>` : null,
     '',
-    article.what_happened ? `*What happened*\n${escapeMarkdown(truncate(article.what_happened, 500))}` : null,
+    article.what_happened
+      ? `<b>What happened</b>\n${escapeHtml(truncate(article.what_happened, 500))}`
+      : null,
     article.why_it_matters || article.developer_impact
-      ? `*Why developers care*\n${escapeMarkdown(truncate(article.why_it_matters ?? article.developer_impact ?? '', 400))}`
+      ? `<b>Why developers care</b>\n${escapeHtml(truncate(article.why_it_matters ?? article.developer_impact ?? '', 400))}`
       : null,
     keyPoints.length > 0
-      ? `*Key points*\n${keyPoints.slice(0, 3).map((point) => `• ${escapeMarkdown(truncate(point, 200))}`).join('\n')}`
+      ? `<b>Key points</b>\n${keyPoints
+          .slice(0, 3)
+          .map((point) => `• ${escapeHtml(truncate(point, 200))}`)
+          .join('\n')}`
       : null,
     article.recommended_action
-      ? `*What you should know*\n${escapeMarkdown(truncate(article.recommended_action, 300))}`
+      ? `<b>What you should know</b>\n${escapeHtml(truncate(article.recommended_action, 300))}`
       : null,
-    '',
-    `🔗 [Source](${article.canonical_url})`,
   ].filter((section) => section !== null)
 
-  return sections.join('\n')
+  return {
+    text: sections.join('\n'),
+    keyboard: articleSourceKeyboard(article.canonical_url),
+    disableWebPagePreview: true,
+  }
 }
 
 export function formatArticleList(
-  articles: Array<{ title: string; canonical_url: string; relevance_score?: number | null; importance_score?: number | null }>,
+  articles: Array<{
+    title: string
+    canonical_url: string
+    relevance_score?: number | null
+    importance_score?: number | null
+  }>,
   heading: string,
-): string {
+): TelegramOutboundMessage {
   if (articles.length === 0) {
-    return `${heading}\n\nNo articles found right now. Check back after the next ingestion cycle.`
+    return {
+      text: `${heading}
+
+No fresh articles in your feed yet — ingestion may still be running.
+
+💡 <i>Tip:</i> Ask me anything directly! I can explain tech topics even without articles in the feed.`,
+      keyboard: emptyFeedKeyboard(),
+    }
   }
 
   const lines = articles.map((article, index) => {
     const score = article.relevance_score ?? article.importance_score
-    const scoreText = score !== null && score !== undefined ? ` (${score}/100)` : ''
-    return `${index + 1}. [${escapeMarkdown(truncate(article.title, 80))}](${article.canonical_url})${scoreText}`
+    const scoreText = score !== null && score !== undefined ? ` · <b>${score}</b>/100` : ''
+    return `${index + 1}. <a href="${article.canonical_url}">${escapeHtml(truncate(article.title, 80))}</a>${scoreText}`
   })
 
-  return `${heading}\n\n${lines.join('\n')}`
+  return {
+    text: `${heading}\n\n${lines.join('\n')}`,
+    keyboard: mainMenuKeyboard(),
+    disableWebPagePreview: true,
+  }
 }
 
 export function formatHelp(): string {
-  return `*Nexora Bot Commands*
+  return `<b>Nexora — your dev intelligence assistant</b>
 
-*Digests*
+<b>💬 Just chat</b>
+Send any message — ask about AI, frameworks, news, career, comparisons. I remember the last few messages.
+
+/clear — Start a fresh conversation
+
+<b>📬 Digests</b>
 /today — Today's important updates
 /latest — Latest high-relevance articles
 /weekly — Weekly digest
 
-*Categories*
+<b>📂 Categories</b>
 /ai /dev /cloud /security /tools
 
-*Intelligence*
-/ask <question> — Ask anything
-/brief <topic> — Quick brief
-/compare <a> <b> — Compare technologies
-/care <tech> — Who should care
-/changes <tech> — Recent changes
-/learn <topic> [beginner|advanced] — Learning guide
+<b>🔍 Deep dives</b>
+/brief &lt;topic&gt; — Quick brief
+/compare &lt;a&gt; &lt;b&gt; — Compare technologies
+/care &lt;tech&gt; — Who should care
+/changes &lt;tech&gt; — Recent changes
+/learn &lt;topic&gt; — Learning guide
 
-*Account*
+<b>⚙️ Account</b>
 /saved — Saved articles
 /settings — Preferences
 /status — Account status
-/quiet — Quiet hours
 
-You can also send normal messages like:
-"What happened in AI today?"
-"Should I learn Rust?"`
+<i>Try: "What happened in AI today?" or "Explain MCP simply"</i>`
+}
+
+export function formatWelcome(): TelegramOutboundMessage {
+  return {
+    text: `👋 <b>Welcome to Nexora</b>
+
+Your personal technology intelligence assistant for developers.
+
+<b>Get started</b>
+1. Open Nexora Settings in the app
+2. Generate a Telegram link token
+3. Send <code>/start &lt;token&gt;</code>
+
+Or just ask me anything — no commands needed!`,
+    keyboard: mainMenuKeyboard(),
+  }
+}
+
+export function formatLinkedWelcome(): TelegramOutboundMessage {
+  return {
+    text: `✅ <b>Account linked!</b>
+
+You're all set. I can send digests, answer questions, and remember our chat.
+
+Tap a button below or just type a message.`,
+    keyboard: mainMenuKeyboard(),
+  }
 }

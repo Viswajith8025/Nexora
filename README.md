@@ -35,6 +35,8 @@ Nexora is a personal technology-intelligence platform for software developers. I
 
 ## Local Setup
 
+**Quick path to daily Telegram digests:** see [`GETTING_STARTED.md`](GETTING_STARTED.md).
+
 ### Prerequisites
 
 - Node.js 20+
@@ -57,7 +59,7 @@ npm run dev          # Start Vite dev server
 npm run build        # Production build
 npm run typecheck    # TypeScript check
 npm run lint         # ESLint
-npm run test         # Vitest (190+ tests)
+npm run test         # Vitest (210+ tests)
 npm run format       # Prettier
 ```
 

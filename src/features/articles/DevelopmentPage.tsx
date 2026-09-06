@@ -1,11 +1,6 @@
-import { CategoryArticlesPage } from './CategoryArticlesPage'
+import { Navigate } from 'react-router-dom'
+import { ROUTES } from '@/config/constants'
 
 export function DevelopmentPage() {
-  return (
-    <CategoryArticlesPage
-      title="Development"
-      description="Framework updates, language changes, and engineering practices that affect how you build."
-      category="Development"
-    />
-  )
+  return <Navigate to={`${ROUTES.news}?category=Development`} replace />
 }

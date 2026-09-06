@@ -1,4 +1,4 @@
-import { z, type ZodIssue } from 'zod'
+import { z, type ZodIssue } from 'npm:zod@3.23.8'
 
 export const contentCategories = [
   'AI',

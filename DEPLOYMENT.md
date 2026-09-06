@@ -38,7 +38,7 @@ supabase link --project-ref <your-project-ref>
 supabase db push
 ```
 
-Migrations live in `supabase/migrations/` (12 files, applied in order).
+Migrations live in `supabase/migrations/` (13 files, applied in order).
 
 ### Configure Auth
 

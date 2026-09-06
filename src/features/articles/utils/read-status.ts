@@ -11,10 +11,24 @@ export function getReadArticleIds(): Set<string> {
   }
 }
 
+function persistReadIds(ids: Set<string>): void {
+  localStorage.setItem(READ_KEY, JSON.stringify([...ids]))
+}
+
 export function markArticleRead(articleId: string): void {
   const ids = getReadArticleIds()
   ids.add(articleId)
-  localStorage.setItem(READ_KEY, JSON.stringify([...ids]))
+  persistReadIds(ids)
+}
+
+export function markAllArticlesRead(articleIds: string[]): void {
+  const ids = getReadArticleIds()
+  for (const id of articleIds) ids.add(id)
+  persistReadIds(ids)
+}
+
+export function clearAllReadArticles(): void {
+  localStorage.removeItem(READ_KEY)
 }
 
 export function isArticleRead(articleId: string): boolean {

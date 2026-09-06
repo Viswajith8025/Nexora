@@ -52,8 +52,8 @@ Deno.serve(async (req) => {
   ] = await Promise.all([
     admin.from('cron_runs').select('completed_at, status, job_name').eq('job_name', 'ingest-sources').order('completed_at', { ascending: false }).limit(1).maybeSingle(),
     admin.from('cron_runs').select('completed_at, status').eq('job_name', 'process-articles').order('completed_at', { ascending: false }).limit(1).maybeSingle(),
-    admin.from('notification_deliveries').select('created_at').eq('channel', 'telegram').eq('status', 'success').order('created_at', { ascending: false }).limit(1).maybeSingle(),
-    admin.from('notification_deliveries').select('created_at').eq('channel', 'email').eq('status', 'success').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    admin.from('notification_deliveries').select('attempted_at').eq('channel', 'telegram').eq('status', 'success').order('attempted_at', { ascending: false }).limit(1).maybeSingle(),
+    admin.from('notification_deliveries').select('attempted_at').eq('channel', 'email').eq('status', 'success').order('attempted_at', { ascending: false }).limit(1).maybeSingle(),
     admin.from('sources').select('name, metadata').eq('is_active', true).not('metadata->>last_error', 'is', null).limit(10),
     admin.from('cron_runs').select('job_name, completed_at, error').eq('status', 'failed').order('completed_at', { ascending: false }).limit(10),
     admin.from('articles').select('id', { count: 'exact', head: true }).gte('discovered_at', todayIso),
@@ -73,8 +73,8 @@ Deno.serve(async (req) => {
     JSON.stringify({
       lastIngestion: lastIngestion.data,
       lastAiProcessing: lastAiProcessing.data,
-      lastTelegramDelivery: lastTelegram.data?.created_at ?? null,
-      lastGmailDelivery: lastGmail.data?.created_at ?? null,
+      lastTelegramDelivery: lastTelegram.data?.attempted_at ?? null,
+      lastGmailDelivery: lastGmail.data?.attempted_at ?? null,
       failedSources: failedSources.data ?? [],
       failedJobs: failedJobs.data ?? [],
       articlesProcessedToday: articlesToday.count ?? 0,

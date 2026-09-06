@@ -1,11 +1,6 @@
-import { CategoryArticlesPage } from './CategoryArticlesPage'
+import { Navigate } from 'react-router-dom'
+import { ROUTES } from '@/config/constants'
 
 export function SecurityPage() {
-  return (
-    <CategoryArticlesPage
-      title="Security"
-      description="Vulnerabilities, advisories, and defensive practices — filtered for developer impact."
-      category="Security"
-    />
-  )
+  return <Navigate to={`${ROUTES.news}?category=Security`} replace />
 }

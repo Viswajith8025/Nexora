@@ -1,11 +1,6 @@
-import { CategoryArticlesPage } from './CategoryArticlesPage'
+import { Navigate } from 'react-router-dom'
+import { ROUTES } from '@/config/constants'
 
 export function ToolsPage() {
-  return (
-    <CategoryArticlesPage
-      title="Developer Tools"
-      description="CLI releases, IDE updates, and productivity tooling worth your attention."
-      category="Developer Tools"
-    />
-  )
+  return <Navigate to={`${ROUTES.news}?category=Developer%20Tools`} replace />
 }

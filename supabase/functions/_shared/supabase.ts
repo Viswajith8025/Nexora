@@ -28,12 +28,28 @@ function getAllowedOrigins(): string[] {
   return configured.split(',').map((origin) => origin.trim()).filter(Boolean)
 }
 
+function isLocalDevOrigin(origin: string): boolean {
+  try {
+    const { hostname } = new URL(origin)
+    return hostname === 'localhost' || hostname === '127.0.0.1'
+  } catch {
+    return false
+  }
+}
+
+function originAllowed(requestOrigin: string, allowedOrigins: string[]): boolean {
+  if (allowedOrigins.includes('*')) return true
+  if (allowedOrigins.includes(requestOrigin)) return true
+  const allowsLocalhost = allowedOrigins.some((origin) => isLocalDevOrigin(origin))
+  return allowsLocalhost && isLocalDevOrigin(requestOrigin)
+}
+
 export function corsHeaders(req?: Request) {
   const allowedOrigins = getAllowedOrigins()
   const requestOrigin = req?.headers.get('Origin')
   let origin = allowedOrigins[0] ?? '*'
 
-  if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+  if (requestOrigin && originAllowed(requestOrigin, allowedOrigins)) {
     origin = requestOrigin
   } else if (allowedOrigins.length === 1 && allowedOrigins[0] !== '*') {
     origin = allowedOrigins[0]

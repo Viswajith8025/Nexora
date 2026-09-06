@@ -4,6 +4,7 @@ import {
   escapeMarkdown,
   formatArticleAlert,
   formatHelp,
+  formatPlainToHtml,
   splitTelegramMessage,
 } from '../../supabase/functions/_shared/telegram/format.ts'
 import { TELEGRAM_MAX_MESSAGE_LENGTH } from '../../supabase/functions/_shared/telegram/types.ts'
@@ -20,14 +21,14 @@ describe('formatArticleAlert', () => {
       recommended_action: 'Review the release notes.',
     })
 
-    expect(message).toMatch(/IMPORTANT UPDATE|UPDATE/)
-    expect(message).toMatch(/New Model X/)
-    expect(message).toMatch(/94\/100/)
-    expect(message).toMatch(/What happened/)
-    expect(message).toMatch(/Why developers care/)
-    expect(message).toMatch(/Key points/)
-    expect(message).toMatch(/What you should know/)
-    expect(message).toMatch(/Source/)
+    expect(message.text).toMatch(/UPDATE/)
+    expect(message.text).toMatch(/New Model X/)
+    expect(message.text).toMatch(/94\/100/)
+    expect(message.text).toMatch(/What happened/)
+    expect(message.text).toMatch(/Why developers care/)
+    expect(message.text).toMatch(/Key points/)
+    expect(message.text).toMatch(/What you should know/)
+    expect(message.keyboard?.[0]?.[0]?.url).toBe('https://example.com/model')
   })
 })
 
@@ -58,8 +59,15 @@ describe('formatHelp', () => {
   it('lists core commands', () => {
     const help = formatHelp()
     expect(help).toMatch(/\/today/)
-    expect(help).toMatch(/\/ask/)
+    expect(help).toMatch(/\/ask|Just chat/)
+    expect(help).toMatch(/\/clear/)
     expect(help).toMatch(/\/compare/)
+  })
+})
+
+describe('formatPlainToHtml', () => {
+  it('converts bold markers to html', () => {
+    expect(formatPlainToHtml('This is **important**')).toContain('<b>important</b>')
   })
 })
 

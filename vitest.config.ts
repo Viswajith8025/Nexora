@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),
+      'npm:zod@3.23.8': path.resolve(import.meta.dirname, './node_modules/zod3'),
     },
   },
   test: {

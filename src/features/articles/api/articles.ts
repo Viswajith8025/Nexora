@@ -4,6 +4,9 @@ import { sanitizeSearchTerm } from '@/lib/security/sanitize-search'
 import type { ArticleFilters, ArticleWithSource, PaginatedArticles } from '../types'
 import { DEFAULT_PAGE_SIZE } from '../types'
 
+/** Primary source embed — must use FK hint because article_sources also links to sources. */
+export const ARTICLE_SOURCE_EMBED = 'source:sources!articles_source_id_fkey ( name )'
+
 const ARTICLE_SELECT = `
   id,
   title,
@@ -29,7 +32,7 @@ const ARTICLE_SELECT = `
   cluster_key,
   notification_level,
   verification_status,
-  source:sources ( name )
+  ${ARTICLE_SOURCE_EMBED}
 `
 
 function normalizeArticle(row: unknown): ArticleWithSource {

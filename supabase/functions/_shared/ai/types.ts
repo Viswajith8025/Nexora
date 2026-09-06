@@ -39,17 +39,28 @@ export type ModelConfig = {
   reasoning: string
 }
 
+/** Test-only fallback — production must set GROQ_MODEL_CHEAP / GROQ_MODEL_DEEP. */
 export const DEFAULT_MODEL_CONFIG: ModelConfig = {
-  classification: 'llama-3.1-8b-instant',
-  summary: 'llama-3.3-70b-versatile',
-  reasoning: 'llama-3.3-70b-versatile',
+  classification: 'openai/gpt-oss-20b',
+  summary: 'openai/gpt-oss-120b',
+  reasoning: 'openai/gpt-oss-120b',
 }
 
 export function resolveModelConfig(env: Record<string, string | undefined>): ModelConfig {
+  const cheap =
+    env.GROQ_MODEL_CHEAP ??
+    env.GROQ_MODEL_CLASSIFICATION ??
+    DEFAULT_MODEL_CONFIG.classification
+  const deep =
+    env.GROQ_MODEL_DEEP ??
+    env.GROQ_MODEL_SUMMARY ??
+    env.GROQ_MODEL_REASONING ??
+    DEFAULT_MODEL_CONFIG.summary
+
   return {
-    classification: env.GROQ_MODEL_CLASSIFICATION ?? DEFAULT_MODEL_CONFIG.classification,
-    summary: env.GROQ_MODEL_SUMMARY ?? DEFAULT_MODEL_CONFIG.summary,
-    reasoning: env.GROQ_MODEL_REASONING ?? DEFAULT_MODEL_CONFIG.reasoning,
+    classification: cheap,
+    summary: deep,
+    reasoning: deep,
   }
 }
 

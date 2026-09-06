@@ -3,6 +3,7 @@ import type { Session, User } from '@supabase/supabase-js'
 import { getSupabaseClientOrNull } from '@/lib/supabase'
 import type { Profile } from '@/types/database'
 import type { LoginInput, SignupInput } from '@/schemas/auth'
+import { mapAuthError } from '@/lib/auth-errors'
 
 export type AuthContextValue = {
   user: User | null
@@ -12,7 +13,7 @@ export type AuthContextValue = {
   isConfigured: boolean
   isAuthenticated: boolean
   signIn: (input: LoginInput) => Promise<{ error: string | null }>
-  signUp: (input: SignupInput) => Promise<{ error: string | null }>
+  signUp: (input: SignupInput) => Promise<{ error: string | null; needsEmailConfirmation?: boolean }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
@@ -106,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password: input.password,
       })
 
-      return { error: error?.message ?? null }
+      return { error: error ? mapAuthError(error.message) : null }
     },
     [supabase],
   )
@@ -117,7 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: 'Supabase is not configured' }
       }
 
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: input.email,
         password: input.password,
         options: {
@@ -127,7 +128,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       })
 
-      return { error: error?.message ?? null }
+      if (error) {
+        return { error: mapAuthError(error.message) }
+      }
+
+      if (!data.session) {
+        return { error: null, needsEmailConfirmation: true }
+      }
+
+      return { error: null }
     },
     [supabase],
   )

@@ -118,7 +118,7 @@ export async function loadAnalyzedArticles(
       urgency_score,
       confidence_score,
       novelty_score,
-      source:sources (
+      source:sources!articles_source_id_fkey (
         name,
         type,
         trust_tier,

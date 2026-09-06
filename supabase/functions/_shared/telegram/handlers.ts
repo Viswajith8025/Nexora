@@ -1,7 +1,16 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AIProvider } from '../ai/types.ts'
 import type { HandlerResult, UserProfile } from './types.ts'
-import { formatArticleAlert, formatArticleList, formatHelp, splitTelegramMessage } from './format.ts'
+import {
+  formatArticleAlert,
+  formatArticleList,
+  formatHelp,
+  formatWelcome,
+  formatLinkedWelcome,
+  toOutboundMessages,
+  escapeHtml,
+} from './format.ts'
+import { chatFollowUpKeyboard, intelligenceFollowUpKeyboard, mainMenuKeyboard } from './keyboards.ts'
 import { parseCompareArgs } from './parser.ts'
 import {
   findProfileByChatId,
@@ -10,7 +19,7 @@ import {
   linkTelegramAccount,
   toggleQuietHours,
 } from './queries.ts'
-import { generateIntelligenceResponse } from './intelligence.ts'
+import { generateChatResponse, generateIntelligenceResponse } from './intelligence.ts'
 import type { NaturalLanguageRoute } from './natural-language.ts'
 import { parseLearnArgs } from './learning-intelligence/parse.ts'
 import {
@@ -19,6 +28,11 @@ import {
   recordLearningQuery,
   upsertLearningProgress,
 } from './learning-intelligence/memory.ts'
+import {
+  appendChatTurn,
+  clearChatHistory,
+  loadChatHistory,
+} from './conversation.ts'
 
 const CATEGORY_MAP: Record<string, string> = {
   ai: 'AI',
@@ -58,26 +72,26 @@ async function handleToday(ctx: HandlerContext): Promise<HandlerResult> {
     const top = articles[0]
     if (!top) {
       return {
-        messages: [formatArticleList(articles, "📅 *Today's important developer updates*")],
+        messages: [formatArticleList(articles, "📅 <b>Today's important developer updates</b>")],
       }
     }
     return {
       messages: [
         formatArticleAlert(top, { emoji: '🚨', label: 'IMPORTANT UPDATE' }),
-        formatArticleList(articles.slice(1), "📅 *Today's other updates*"),
+        formatArticleList(articles.slice(1), "📅 <b>Today's other updates</b>"),
       ],
     }
   }
 
   return {
-    messages: [formatArticleList(articles, "📅 *Today's important developer updates*")],
+    messages: [formatArticleList(articles, "📅 <b>Today's important developer updates</b>")],
   }
 }
 
 async function handleLatest(ctx: HandlerContext): Promise<HandlerResult> {
   const articles = await getPublishedArticles(ctx.supabase, { limit: 5, minScore: 60 })
   return {
-    messages: [formatArticleList(articles, '📰 *Latest high-relevance articles*')],
+    messages: [formatArticleList(articles, '📰 <b>Latest high-relevance articles</b>')],
   }
 }
 
@@ -85,7 +99,7 @@ async function handleCategory(ctx: HandlerContext, categoryKey: string): Promise
   const category = CATEGORY_MAP[categoryKey]
   const articles = await getPublishedArticles(ctx.supabase, { limit: 5, category })
   return {
-    messages: [formatArticleList(articles, `📂 *${category} updates*`)],
+    messages: [formatArticleList(articles, `📂 <b>${category} updates</b>`)],
   }
 }
 
@@ -96,7 +110,7 @@ async function handleWeekly(ctx: HandlerContext): Promise<HandlerResult> {
     sinceHours: 24 * 7,
   })
   return {
-    messages: [formatArticleList(articles, '📆 *Weekly developer digest*')],
+    messages: [formatArticleList(articles, '📆 <b>Weekly developer digest</b>')],
   }
 }
 
@@ -106,7 +120,7 @@ async function handleSaved(ctx: HandlerContext): Promise<HandlerResult> {
 
   const articles = await getSavedArticles(ctx.supabase, ctx.profile!.id, 5)
   return {
-    messages: [formatArticleList(articles, '⭐ *Your saved articles*')],
+    messages: [formatArticleList(articles, '⭐ <b>Your saved articles</b>')],
   }
 }
 
@@ -117,16 +131,19 @@ function handleSettings(ctx: HandlerContext): HandlerResult {
   const profile = ctx.profile!
   return {
     messages: [
-      `⚙️ *Nexora Settings*
+      {
+        text: `⚙️ <b>Nexora Settings</b>
 
-Breaking alerts: ${profile.breaking_alerts_enabled ? 'On' : 'Off'}
-Morning digest: ${profile.morning_digest_enabled ? 'On' : 'Off'}
-Evening digest: ${profile.evening_digest_enabled ? 'On' : 'Off'}
-Weekly digest: ${profile.weekly_digest_enabled ? 'On' : 'Off'}
+Breaking alerts: ${profile.breaking_alerts_enabled ? '✅ On' : 'Off'}
+Morning digest: ${profile.morning_digest_enabled ? '✅ On' : 'Off'}
+Evening digest: ${profile.evening_digest_enabled ? '✅ On' : 'Off'}
+Weekly digest: ${profile.weekly_digest_enabled ? '✅ On' : 'Off'}
 Quiet hours: ${profile.quiet_hours_enabled ? 'On' : 'Off'}
-Timezone: ${profile.timezone}
+Timezone: <code>${escapeHtml(profile.timezone)}</code>
 
 Change preferences in the Nexora web app.`,
+        keyboard: mainMenuKeyboard(),
+      },
     ],
   }
 }
@@ -135,13 +152,14 @@ function handleStatus(ctx: HandlerContext): HandlerResult {
   const linked = Boolean(ctx.profile)
   return {
     messages: [
-      `✅ *Nexora Bot Status*
+      {
+        text: `✅ <b>Nexora Bot Status</b>
 
-Account: ${linked ? 'Linked' : 'Not linked'}
+Account: ${linked ? '✅ Linked' : '❌ Not linked'}
 Channel: Telegram (primary)
-AI: ${ctx.groq ? 'Available' : 'Unavailable'}
-
-Use /help to see commands.`,
+AI: ${ctx.groq ? '✅ Available' : '❌ Unavailable'}`,
+        keyboard: mainMenuKeyboard(),
+      },
     ],
   }
 }
@@ -159,24 +177,22 @@ async function handleQuiet(ctx: HandlerContext): Promise<HandlerResult> {
 
 async function handleStart(ctx: HandlerContext, args: string): Promise<HandlerResult> {
   if (!args.trim()) {
-    return {
-      messages: [
-        `👋 *Welcome to Nexora*
-
-Your personal technology intelligence assistant.
-
-To link your account:
-1. Open Nexora Settings
-2. Generate a Telegram link token
-3. Send /start <token>
-
-Try /help for commands.`,
-      ],
-    }
+    return { messages: [formatWelcome()] }
   }
 
   const result = await linkTelegramAccount(ctx.supabase, ctx.chatId, args.trim())
-  return { messages: [result.message] }
+  if (result.success) {
+    return { messages: [formatLinkedWelcome()] }
+  }
+
+  return {
+    messages: [
+      {
+        text: `❌ ${escapeHtml(result.message)}`,
+        keyboard: mainMenuKeyboard(),
+      },
+    ],
+  }
 }
 
 function intelligenceTask(
@@ -196,9 +212,10 @@ function intelligenceTask(
   }
 
   const topic = options?.topic ?? query
+  const isChat = task === 'ask'
 
   return {
-    messages: ['🔍 Researching…'],
+    messages: [{ text: isChat ? '💭 <i>Thinking…</i>' : '🔍 <i>Researching…</i>' }],
     research: async () => {
       const articles = await getPublishedArticles(ctx.supabase, {
         limit: 8,
@@ -211,19 +228,35 @@ function intelligenceTask(
         memoryNote = buildMemoryNote(memory, topic)
       }
 
-      const answer = await generateIntelligenceResponse(
-        ctx.groq!,
-        task,
-        query,
-        articles,
-        {
-          topic,
-          compareA: options?.compareA,
-          compareB: options?.compareB,
-          level: options?.level,
+      const history = isChat ? await loadChatHistory(ctx.supabase, ctx.chatId) : []
+
+      let displayAnswer = ''
+      if (isChat) {
+        const chat = await generateChatResponse(
+          ctx.groq!,
+          query,
+          articles,
+          history,
           memoryNote,
-        },
-      )
+        )
+        displayAnswer = chat.html
+        await appendChatTurn(ctx.supabase, ctx.chatId, ctx.profile?.id, 'user', query)
+        await appendChatTurn(ctx.supabase, ctx.chatId, ctx.profile?.id, 'assistant', chat.plain)
+      } else {
+        displayAnswer = await generateIntelligenceResponse(
+          ctx.groq!,
+          task,
+          query,
+          articles,
+          {
+            topic,
+            compareA: options?.compareA,
+            compareB: options?.compareB,
+            level: options?.level,
+            memoryNote,
+          },
+        )
+      }
 
       if (ctx.profile && task !== 'ask') {
         await recordLearningQuery(ctx.supabase, ctx.profile.id, topic, task)
@@ -232,7 +265,14 @@ function intelligenceTask(
         }
       }
 
-      return splitTelegramMessage(`*Nexora*\n\n${answer}`)
+      const keyboard = isChat
+        ? chatFollowUpKeyboard()
+        : intelligenceFollowUpKeyboard(topic)
+
+      return toOutboundMessages(displayAnswer, {
+        keyboard,
+        disableWebPagePreview: true,
+      })
     },
   }
 }
@@ -246,7 +286,7 @@ async function handleCommand(
     case 'start':
       return handleStart(ctx, args)
     case 'help':
-      return { messages: [formatHelp()] }
+      return { messages: [{ text: formatHelp(), keyboard: mainMenuKeyboard() }] }
     case 'today':
       return handleToday(ctx)
     case 'latest':
@@ -281,11 +321,23 @@ async function handleCommand(
         search: parsed.topic,
       })
     }
-    case 'ask': {
-      const error = requireArgs(args, '/ask What is MCP?')
+    case 'ask':
+    case 'chat': {
+      const error = requireArgs(args, '/chat What is MCP?')
       if (error) return { messages: [error] }
       return intelligenceTask(ctx, 'ask', args, { search: args })
     }
+    case 'clear':
+    case 'newchat':
+      await clearChatHistory(ctx.supabase, ctx.chatId)
+      return {
+        messages: [
+          {
+            text: '🆕 <b>Fresh chat started!</b>\n\nAsk me anything about tech, AI, frameworks, or career.',
+            keyboard: chatFollowUpKeyboard(),
+          },
+        ],
+      }
     case 'brief': {
       const error = requireArgs(args, '/brief Astra')
       if (error) return { messages: [error] }
@@ -366,7 +418,7 @@ export async function handleNaturalLanguage(
         search: route.topic,
       })
     case 'help':
-      return { messages: [formatHelp()] }
+      return { messages: [{ text: formatHelp(), keyboard: mainMenuKeyboard() }] }
     case 'ask':
     default:
       return intelligenceTask(ctx, 'ask', route.query, { search: route.query })
@@ -380,6 +432,80 @@ export async function buildHandlerContext(
 ): Promise<HandlerContext> {
   const profile = await findProfileByChatId(supabase, chatId)
   return { supabase, groq, chatId, profile }
+}
+
+export async function dispatchCallbackAction(
+  ctx: HandlerContext,
+  data: string,
+): Promise<HandlerResult> {
+  if (!data.startsWith('act:')) {
+    return { messages: ['Unknown action. Try /help'] }
+  }
+
+  const payload = data.slice(4)
+  const colonIndex = payload.indexOf(':')
+  const action = colonIndex >= 0 ? payload.slice(0, colonIndex) : payload
+  const arg = colonIndex >= 0 ? payload.slice(colonIndex + 1) : ''
+
+  switch (action) {
+    case 'today':
+      return handleToday(ctx)
+    case 'latest':
+      return handleLatest(ctx)
+    case 'weekly':
+      return handleWeekly(ctx)
+    case 'ai':
+      return handleCategory(ctx, 'ai')
+    case 'dev':
+      return handleCategory(ctx, 'dev')
+    case 'cloud':
+      return handleCategory(ctx, 'cloud')
+    case 'security':
+      return handleCategory(ctx, 'security')
+    case 'tools':
+      return handleCategory(ctx, 'tools')
+    case 'help':
+      return { messages: [{ text: formatHelp(), keyboard: mainMenuKeyboard() }] }
+    case 'settings':
+      return handleSettings(ctx)
+    case 'clear':
+      await clearChatHistory(ctx.supabase, ctx.chatId)
+      return {
+        messages: [
+          {
+            text: '🆕 <b>Fresh chat started!</b>\n\nAsk me anything about tech, AI, frameworks, or career.',
+            keyboard: chatFollowUpKeyboard(),
+          },
+        ],
+      }
+    case 'chat':
+      return {
+        messages: [
+          {
+            text: '💬 <b>Ask me anything!</b>\n\nType a question like:\n• What is MCP?\n• Should I learn Rust?\n• What happened in AI today?',
+            keyboard: chatFollowUpKeyboard(),
+          },
+        ],
+      }
+    case 'learn':
+      if (!arg) return { messages: ['Try /learn MCP'] }
+      return intelligenceTask(ctx, 'learn', arg, { topic: arg, search: arg })
+    case 'brief':
+      if (!arg) return { messages: ['Try /brief Astra'] }
+      return intelligenceTask(ctx, 'brief', arg, { topic: arg, search: arg })
+    case 'compare':
+      if (!arg) return { messages: ['Try /compare Next.js Remix'] }
+      return {
+        messages: [
+          {
+            text: `⚖️ <b>Compare what with ${escapeHtml(arg)}?</b>\n\nSend: <code>/compare ${escapeHtml(arg)} &lt;other&gt;</code>`,
+            keyboard: intelligenceFollowUpKeyboard(arg),
+          },
+        ],
+      }
+    default:
+      return { messages: ['Unknown action. Try /help'] }
+  }
 }
 
 export async function dispatchCommand(

@@ -19,7 +19,8 @@
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "npm:zod@3.23.8": ["./node_modules/zod3"]
     },
 
     /* Linting */

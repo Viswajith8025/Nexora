@@ -1,6 +1,6 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { buildGmailAuthUrl, exchangeGmailCode } from '../_shared/gmail/oauth.ts'
-import { corsHeaders } from '../_shared/supabase.ts'
+import { corsHeaders, createServiceClient, validateServerEnv } from '../_shared/supabase.ts'
 import { createOAuthState, parseOAuthState } from '../_shared/security/oauth-state.ts'
 
 function oauthSigningSecret(serviceKey: string): string {
@@ -13,9 +13,21 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders(req) })
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  const env = validateServerEnv({
+    SUPABASE_URL: Deno.env.get('SUPABASE_URL'),
+    SUPABASE_SERVICE_ROLE_KEY: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+  })
+  const supabaseUrl = env.SUPABASE_URL
+  const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
   const authHeader = req.headers.get('Authorization')
+
+  if (!anonKey) {
+    return new Response(JSON.stringify({ error: 'SUPABASE_ANON_KEY is not configured' }), {
+      status: 500,
+      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
+    })
+  }
 
   if (req.method === 'DELETE') {
     if (!authHeader) {
@@ -25,10 +37,10 @@ Deno.serve(async (req) => {
       })
     }
 
-    const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+    const supabase = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     })
-    const admin = createClient(supabaseUrl, serviceKey)
+    const admin = createServiceClient(env)
 
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
@@ -60,7 +72,6 @@ Deno.serve(async (req) => {
 
   const signingSecret = oauthSigningSecret(serviceKey)
 
-  // OAuth callback from Google
   const code = url.searchParams.get('code')
   const state = url.searchParams.get('state')
 
@@ -72,15 +83,15 @@ Deno.serve(async (req) => {
       }
 
       const { refreshToken, email } = await exchangeGmailCode(code, clientId, clientSecret, redirectUri)
-      const supabase = createClient(supabaseUrl, serviceKey)
+      const admin = createServiceClient(env)
 
-      await supabase.from('gmail_connections').upsert({
+      await admin.from('gmail_connections').upsert({
         user_id: userId,
         email,
         refresh_token: refreshToken,
       })
 
-      await supabase.from('profiles').update({
+      await admin.from('profiles').update({
         gmail_enabled: true,
         gmail_address: email,
       }).eq('id', userId)
@@ -93,7 +104,6 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Start OAuth — requires authenticated user
   if (!authHeader) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
@@ -101,7 +111,7 @@ Deno.serve(async (req) => {
     })
   }
 
-  const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+  const supabase = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   })
 

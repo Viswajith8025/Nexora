@@ -33,7 +33,7 @@ export function ArticleCard({
   const category = article.category
 
   return (
-    <Card className="group overflow-hidden border-border/70 bg-card/80 backdrop-blur transition-shadow hover:shadow-md">
+    <Card className="group overflow-hidden border-0 bg-ink-800 transition-colors hover:bg-ink-700">
       <CardHeader className={cn('space-y-3', compact ? 'p-4 pb-2' : 'p-5 pb-3')}>
         <div className="flex flex-wrap items-center gap-2">
           {category ? (
@@ -61,7 +61,7 @@ export function ArticleCard({
           <ScorePill label="Dev" value={article.developer_relevance_score} />
         </div>
       </CardContent>
-      <CardFooter className={cn('flex flex-wrap gap-2 border-t bg-muted/20', compact ? 'p-3' : 'p-4')}>
+      <CardFooter className={cn('flex flex-wrap gap-2 bg-ink-700/40', compact ? 'p-3' : 'p-4')}>
         <Button asChild size="sm" variant="default">
           <Link to={ROUTES.newsDetail(article.id)}>Learn More</Link>
         </Button>
@@ -91,7 +91,7 @@ export function ArticleCardMini({ article }: { article: ArticleWithSource }) {
   return (
     <Link
       to={ROUTES.newsDetail(article.id)}
-      className="block rounded-lg border border-border/70 bg-card/60 p-3 transition-colors hover:border-primary/30 hover:bg-card"
+      className="block rounded-lg bg-ink-800 p-3 transition-colors hover:bg-ink-700"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -110,7 +110,7 @@ export function ArticleCardMini({ article }: { article: ArticleWithSource }) {
 
 export function LearningCard({ title, description }: { title: string; description?: string | null }) {
   return (
-    <div className="rounded-lg border border-border/70 bg-card/60 p-4">
+    <div className="rounded-lg bg-ink-800 p-4">
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <GraduationCap className="h-4 w-4" />

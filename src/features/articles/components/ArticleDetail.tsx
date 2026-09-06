@@ -10,6 +10,7 @@ import { formatPublishedDate } from '../utils/format'
 import { ArticleFeedbackBar } from '@/features/personalization/components/ArticleFeedbackBar'
 import { RelevanceExplanation } from '@/features/personalization/components/RelevanceExplanation'
 import type { PersonalizedRelevance, FeedbackSignal } from '@/features/personalization/types'
+import { getTelegramBotUsername } from '@/features/personalization/api/telegram'
 import { cn } from '@/lib/utils'
 
 function DetailBlock({ title, content }: { title: string; content: string | null }) {
@@ -46,6 +47,8 @@ export function ArticleDetail({
   personalizedRelevance?: PersonalizedRelevance | null
 }) {
   const technicalImpact = article.technical_impact ?? article.developer_impact
+  const botUsername = getTelegramBotUsername()
+  const telegramAskUrl = botUsername ? `https://t.me/${botUsername}` : null
 
   return (
     <article className="space-y-8">
@@ -87,10 +90,17 @@ export function ArticleDetail({
           </a>
         </Button>
         <Button asChild variant="secondary" size="sm" id="ask">
-          <Link to={`/news/${article.id}#ask`}>
-            <Bot className="mr-1.5 h-4 w-4" />
-            Ask AI
-          </Link>
+          {telegramAskUrl ? (
+            <a href={telegramAskUrl} target="_blank" rel="noreferrer">
+              <Bot className="mr-1.5 h-4 w-4" />
+              Ask in Telegram
+            </a>
+          ) : (
+            <Link to={`/news/${article.id}#ask`}>
+              <Bot className="mr-1.5 h-4 w-4" />
+              Ask AI
+            </Link>
+          )}
         </Button>
       </div>
 
@@ -146,12 +156,20 @@ export function ArticleDetail({
           <div>
             <p className="font-medium">Ask AI about this story</p>
             <p className="text-sm text-muted-foreground">
-              Get a deeper technical breakdown via Telegram or the upcoming in-app assistant.
+              {telegramAskUrl
+                ? 'Open the Nexora bot and send /brief or ask a question about this story.'
+                : 'Link Telegram in Settings for on-demand AI briefings.'}
             </p>
           </div>
-          <Button asChild variant="secondary">
-            <a href={article.canonical_url} target="_blank" rel="noreferrer">Read source first</a>
-          </Button>
+          {telegramAskUrl ? (
+            <Button asChild variant="secondary">
+              <a href={telegramAskUrl} target="_blank" rel="noreferrer">Open Telegram bot</a>
+            </Button>
+          ) : (
+            <Button asChild variant="secondary">
+              <a href={article.canonical_url} target="_blank" rel="noreferrer">Read source first</a>
+            </Button>
+          )}
         </CardContent>
       </Card>
     </article>

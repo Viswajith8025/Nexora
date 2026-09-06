@@ -58,7 +58,7 @@ export async function deliverNotification(
 
   try {
     const chunks = splitTelegramMessage(input.body)
-    await telegram.sendMessages(user.telegram_chat_id, chunks)
+    await telegram.sendMessages(user.telegram_chat_id, chunks, { parseMode: 'Markdown' })
 
     await supabase
       .from('notifications')
