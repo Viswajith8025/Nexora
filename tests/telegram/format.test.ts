@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import {
-  escapeMarkdown,
+  escapeHtml,
   formatArticleAlert,
   formatHelp,
   formatPlainToHtml,
@@ -71,8 +71,8 @@ describe('formatPlainToHtml', () => {
   })
 })
 
-describe('escapeMarkdown', () => {
-  it('escapes markdown characters', () => {
-    expect(escapeMarkdown('use *bold* and [link]')).toContain('\\*bold\\*')
+describe('escapeHtml', () => {
+  it('escapes html characters', () => {
+    expect(escapeHtml('use <b>bold</b> & ampersand')).toBe('use &lt;b&gt;bold&lt;/b&gt; &amp; ampersand')
   })
 })

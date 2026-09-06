@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { fetchUserInterests, fetchFollowedTopics, saveInterestWeights } from '../api/interests'
 import { fetchArticleFeedback, removeConflictingFeedback, submitArticleFeedback } from '../api/feedback'
@@ -13,13 +13,7 @@ export function usePersonalizationContext() {
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
-    if (!user) {
-      setInterests([])
-      setFollowedTopics([])
-      setLoading(false)
-      return
-    }
-
+    if (!user) return
     setLoading(true)
     try {
       const [nextInterests, topics] = await Promise.all([
@@ -40,8 +34,31 @@ export function usePersonalizationContext() {
   }, [user?.id])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    if (!user) return
+
+    let cancelled = false
+    void (async () => {
+      try {
+        const [nextInterests, topics] = await Promise.all([
+          fetchUserInterests(user.id),
+          fetchFollowedTopics(user.id),
+        ])
+        if (cancelled) return
+        setInterests(
+          nextInterests.map((interest) => ({
+            interestType: interest.interest_type,
+            value: interest.value,
+            weight: interest.weight,
+          })),
+        )
+        setFollowedTopics(topics)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [user?.id])
 
   const context: PersonalizationContext | null =
     user && profile
@@ -53,22 +70,24 @@ export function usePersonalizationContext() {
         }
       : null
 
-  return { context, interests, followedTopics, loading, reload: load, setInterests }
+  return {
+    context,
+    interests,
+    followedTopics,
+    loading: Boolean(user) && loading,
+    reload: load,
+    setInterests,
+  }
 }
 
 export function useArticleFeedback(article: ArticleWithSource | null) {
   const { user, profile } = useAuth()
   const { context, reload: reloadInterests, setInterests } = usePersonalizationContext()
   const [signals, setSignals] = useState<FeedbackSignal[]>([])
-  const [relevance, setRelevance] = useState<PersonalizedRelevance | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (!user || !article) {
-      setSignals([])
-      setRelevance(null)
-      return
-    }
+    if (!user || !article) return
 
     let cancelled = false
     void fetchArticleFeedback(user.id, article.id).then((result) => {
@@ -78,17 +97,13 @@ export function useArticleFeedback(article: ArticleWithSource | null) {
     return () => { cancelled = true }
   }, [user?.id, article?.id])
 
-  useEffect(() => {
-    if (!article || !context || !profile) {
-      setRelevance(null)
-      return
-    }
-
+  const relevance = useMemo<PersonalizedRelevance | null>(() => {
+    if (!article || !context || !profile) return null
     const fullContext: PersonalizationContext = {
       ...context,
       feedback: signals,
     }
-    setRelevance(computePersonalizedRelevance(article, fullContext))
+    return computePersonalizedRelevance(article, fullContext)
   }, [article, context, profile, signals])
 
   const submitFeedback = useCallback(
@@ -105,7 +120,7 @@ export function useArticleFeedback(article: ArticleWithSource | null) {
           feedback: [...signals.filter((item) => item !== signal), signal],
         }
 
-        const { relevance: nextRelevance, adjustedInterests } = await applyFeedbackAndRescore(
+        const { adjustedInterests } = await applyFeedbackAndRescore(
           user.id,
           article,
           signal,
@@ -113,7 +128,6 @@ export function useArticleFeedback(article: ArticleWithSource | null) {
         )
 
         setSignals((current) => [...current.filter((item) => item !== signal), signal])
-        setRelevance(nextRelevance)
 
         if (adjustedInterests.adjustments.length > 0) {
           const engineInterests = adjustedInterests.interests.map((interest) => ({
@@ -147,5 +161,10 @@ export function useArticleFeedback(article: ArticleWithSource | null) {
     [user, article, context, signals, reloadInterests, setInterests],
   )
 
-  return { signals, relevance, submitting, submitFeedback }
+  return {
+    signals: user && article ? signals : [],
+    relevance,
+    submitting,
+    submitFeedback,
+  }
 }

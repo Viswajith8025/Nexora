@@ -32,7 +32,20 @@ export function SearchPage() {
   const filters = useMemo(() => parseFilters(params), [params])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const filterKey = [
+    query,
+    filters.category,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.minImportance,
+    filters.source,
+  ].join('|')
   const [page, setPage] = useState(1)
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey)
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey)
+    setPage(1)
+  }
   const [articles, setArticles] = useState<ArticleWithSource[]>([])
   const [savedArticles, setSavedArticles] = useState<ArticleWithSource[]>([])
   const [learningTopics, setLearningTopics] = useState<
@@ -45,24 +58,27 @@ export function SearchPage() {
   const { user } = useAuth()
   const { toggleSave } = useSaveArticle()
 
-  useEffect(() => {
-    if (!user) {
-      setSavedIds(new Set())
-      return
-    }
-    void refreshSavedIds(user.id).then(setSavedIds)
-  }, [user?.id])
 
   useEffect(() => {
-    setPage(1)
-  }, [query, filters.category, filters.dateFrom, filters.dateTo, filters.minImportance, filters.source])
+    if (!user) return
+
+    let cancelled = false
+    void refreshSavedIds(user.id).then((ids) => {
+      if (!cancelled) setSavedIds(ids)
+    })
+    return () => { cancelled = true }
+  }, [user?.id])
 
   useEffect(() => {
     if (!query.trim()) return
 
     let cancelled = false
-    setLoading(true)
-    setError(null)
+    void Promise.resolve().then(() => {
+      if (!cancelled) {
+        setLoading(true)
+        setError(null)
+      }
+    })
 
     void globalSearch(
       {
@@ -183,7 +199,7 @@ export function SearchPage() {
                     <h2 id="search-saved" className="mb-2 text-sm font-semibold tracking-wide">Saved matches</h2>
                     <ArticleList
                       articles={savedArticles}
-                      savedIds={savedIds}
+                      savedIds={user ? savedIds : new Set()}
                       onSave={(articleId, isSaved) => {
                         void toggleSave(articleId, isSaved, setSavedIds, savedIds)
                       }}
@@ -207,7 +223,7 @@ export function SearchPage() {
                   <ArticleList
                     articles={articles}
                     loading={loading && articles.length === 0}
-                    savedIds={savedIds}
+                    savedIds={user ? savedIds : new Set()}
                     onSave={(articleId, isSaved) => {
                       void toggleSave(articleId, isSaved, setSavedIds, savedIds)
                     }}

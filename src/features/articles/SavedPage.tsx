@@ -13,21 +13,21 @@ export function SavedPage() {
   const [page, setPage] = useState(1)
   const [articles, setArticles] = useState<ArticleWithSource[]>([])
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
   const { toggleSave } = useSaveArticle()
 
   useEffect(() => {
-    if (!user) {
-      setArticles([])
-      setLoading(false)
-      return
-    }
+    if (!user) return
 
     let cancelled = false
-    setLoading(true)
-    setError(null)
+    void Promise.resolve().then(() => {
+      if (!cancelled) {
+        setLoading(true)
+        setError(null)
+      }
+    })
 
     void searchSavedArticles(user.id, '', page)
       .then((result) => {
@@ -57,8 +57,8 @@ export function SavedPage() {
         <ErrorState type="generic" description={error} onRetry={() => setPage(1)} />
       ) : (
         <RelevanceArticleList
-          articles={articles}
-          loading={loading && page === 1}
+          articles={user ? articles : []}
+          loading={Boolean(user) && loading && page === 1}
           savedIds={savedIds}
           onSave={(articleId, isSaved) => {
             void toggleSave(articleId, isSaved, setSavedIds, savedIds).then(() => {

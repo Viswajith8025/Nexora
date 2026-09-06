@@ -35,8 +35,26 @@ export function useArticles(filters: ArticleFilters = {}) {
   }, [filters.category, filters.search, filters.minRelevance, filters.breakingOnly, filters.page, filters.pageSize, user?.id])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    let cancelled = false
+    void (async () => {
+      try {
+        const result = await fetchArticles(filters)
+        if (cancelled) return
+        setData(result)
+        if (user) {
+          const ids = await fetchSavedArticleIds(user.id)
+          if (!cancelled) setSavedIds(ids)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load articles')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [filters.category, filters.search, filters.minRelevance, filters.breakingOnly, filters.page, filters.pageSize, user?.id])
 
   const loadMore = useCallback(async () => {
     if (!data.hasMore || loading) return
@@ -69,9 +87,7 @@ export function useDashboardArticles() {
   useEffect(() => {
     let cancelled = false
 
-    async function load() {
-      setLoading(true)
-      setError(null)
+    void (async () => {
       try {
         const { articles } = await fetchArticles({ pageSize: 40, minRelevance: 55 })
         if (cancelled) return
@@ -105,9 +121,8 @@ export function useDashboardArticles() {
       } finally {
         if (!cancelled) setLoading(false)
       }
-    }
+    })()
 
-    void load()
     return () => { cancelled = true }
   }, [user?.id])
 

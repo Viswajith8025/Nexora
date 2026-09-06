@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 64" fill="none" role="img" aria-label="Nexora">
+  <defs>
+    <linearGradient id="logo-bg" x1="10" y1="6" x2="54" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1c2e32" />
+      <stop offset="1" stop-color="#0d1416" />
+    </linearGradient>
+    <linearGradient id="logo-mark" x1="18" y1="14" x2="46" y2="50" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8ef0c4" />
+      <stop offset=".42" stop-color="#52c98a" />
+      <stop offset="1" stop-color="#0d7a5f" />
+    </linearGradient>
+    <linearGradient id="logo-text" x1="76" y1="20" x2="228" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f0fdf7" />
+      <stop offset=".55" stop-color="#e4edee" />
+      <stop offset="1" stop-color="#8ca1a6" />
+    </linearGradient>
+    <radialGradient id="logo-node" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(44 18) rotate(90) scale(10)">
+      <stop stop-color="#b8ffd9" />
+      <stop offset="1" stop-color="#52c98a" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <g transform="translate(0 0)">
+    <rect width="64" height="64" rx="15" fill="url(#logo-bg)" />
+    <rect width="64" height="64" rx="15" fill="url(#logo-mark)" fill-opacity=".07" />
+    <rect x="1" y="1" width="62" height="62" rx="14" stroke="#52c98a" stroke-opacity=".2" />
+    <circle cx="44" cy="18" r="9" fill="url(#logo-node)" opacity=".85" />
+    <path d="M21 46V18h4.8L38.5 40.2V18H44v28" stroke="url(#logo-mark)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="44" cy="18" r="3.25" fill="#8ef0c4" />
+  </g>
+  <text
+    x="80"
+    y="41"
+    fill="url(#logo-text)"
+    font-family="'Inter Tight', ui-sans-serif, system-ui, sans-serif"
+    font-size="26"
+    font-weight="600"
+    letter-spacing="0.14em"
+  >
+    NEXORA
+  </text>
+</svg>

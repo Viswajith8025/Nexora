@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { APP_MOTTO, APP_NAME, APP_TAGLINE, ROUTES } from '@/config/constants'
+import { NexoraMark } from '@/components/brand/NexoraMark'
 import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -40,9 +41,12 @@ export function HomePage() {
       <section className="flex flex-col gap-6">
         <Badge className="w-fit border-primary/20 bg-primary/5 text-primary">Personal Intelligence</Badge>
         <div className="flex flex-col gap-4">
-          <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-            {APP_NAME}
-          </h1>
+          <div className="flex items-center gap-4">
+            <NexoraMark size={56} className="shadow-[0_0_32px_-8px] shadow-signal/60" />
+            <h1 className="text-4xl font-semibold tracking-[0.08em] uppercase sm:text-5xl">
+              {APP_NAME}
+            </h1>
+          </div>
           <p className="max-w-2xl text-lg text-muted-foreground">{APP_TAGLINE}</p>
           <p className="text-sm font-medium text-primary">{APP_MOTTO}</p>
         </div>

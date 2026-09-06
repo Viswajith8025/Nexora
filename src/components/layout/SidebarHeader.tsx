@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { APP_NAME, APP_TAGLINE, ROUTES } from '@/config/constants'
+import { NexoraMark } from '@/components/brand/NexoraMark'
 import { cn } from '@/lib/utils'
 
 function getInitials(displayName?: string | null, email?: string | null): string {
@@ -12,20 +13,8 @@ function getInitials(displayName?: string | null, email?: string | null): string
 }
 
 function BrandMark({ className }: { className?: string }) {
-  return (
-    <div
-      className={cn(
-        'relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
-        'bg-gradient-to-br from-signal/90 to-signal/40 shadow-[0_0_24px_-4px] shadow-signal/40',
-        'ring-1 ring-signal/30',
-        className,
-      )}
-      aria-hidden
-    >
-      <span className="text-sm font-bold tracking-tight text-primary-foreground">N</span>
-      <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-t from-black/10 to-white/10" />
-    </div>
-  )
+  const size = className?.includes('h-8') ? 32 : 36
+  return <NexoraMark className={className} size={size} />
 }
 
 type SidebarHeaderProps = {
@@ -49,7 +38,7 @@ export function SidebarHeader({ displayName, email, compact = false }: SidebarHe
           to={ROUTES.dashboard}
           className="group flex items-center gap-3 rounded-lg outline-offset-4 transition-opacity hover:opacity-90"
         >
-          <BrandMark />
+          <BrandMark className="shadow-[0_0_24px_-6px] shadow-signal/50" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-[15px] font-semibold tracking-[0.12em] text-foreground uppercase">
               {APP_NAME}

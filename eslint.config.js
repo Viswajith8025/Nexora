@@ -13,6 +13,7 @@ export default tseslint.config(
       'StrideUp/**',
       'livekeralam/**',
       '**/dev-dist/**',
+      'vitest.config.ts',
     ],
   },
   {
@@ -39,7 +40,6 @@ export default tseslint.config(
       ],
       '@typescript-eslint/no-confusing-void-expression': 'off',
       '@typescript-eslint/no-unnecessary-condition': 'off',
-      'react-hooks/set-state-in-effect': 'warn',
     },
   },
   {

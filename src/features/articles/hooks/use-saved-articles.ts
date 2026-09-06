@@ -11,11 +11,7 @@ export function useSavedArticles() {
   const { user } = useAuth()
 
   const load = useCallback(async () => {
-    if (!user) {
-      setArticles([])
-      setLoading(false)
-      return
-    }
+    if (!user) return
     setLoading(true)
     setError(null)
     try {
@@ -30,10 +26,35 @@ export function useSavedArticles() {
   }, [user?.id])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    if (!user) return
 
-  return { articles, savedIds, loading, error, reload: load, setSavedIds }
+    let cancelled = false
+    void (async () => {
+      try {
+        const result = await fetchSavedArticles(user.id)
+        if (cancelled) return
+        setArticles(result)
+        setSavedIds(new Set(result.map((article) => article.id)))
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load saved articles')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [user?.id])
+
+  return {
+    articles: user ? articles : [],
+    savedIds,
+    loading: Boolean(user) && loading,
+    error,
+    reload: load,
+    setSavedIds,
+  }
 }
 
 export function useSaveArticle() {

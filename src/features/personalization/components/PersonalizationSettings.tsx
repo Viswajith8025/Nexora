@@ -55,7 +55,11 @@ export function PersonalizationSettings() {
   const [companies, setCompanies] = useState<string[]>([])
   const [topics, setTopics] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(() =>
+    searchParams.get('gmail') === 'connected'
+      ? 'Gmail connected successfully. Digests will also be sent to your inbox.'
+      : null,
+  )
   const [linkToken, setLinkToken] = useState<string | null>(null)
   const [linkExpiresAt, setLinkExpiresAt] = useState<string | null>(null)
   const [digestPreview, setDigestPreview] = useState<string | null>(null)
@@ -64,6 +68,8 @@ export function PersonalizationSettings() {
   const [morningHour, setMorningHour] = useState(8)
   const [eveningHour, setEveningHour] = useState(19)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingProfileRef = useRef<Parameters<typeof updateProfileSettings>[1]>({})
+  const skipProfileSyncRef = useRef(false)
   const botUsername = getTelegramBotUsername()
 
   useEffect(() => {
@@ -77,21 +83,21 @@ export function PersonalizationSettings() {
   }, [user?.id])
 
   useEffect(() => {
-    if (!profile) return
+    if (!profile || skipProfileSyncRef.current) return
     setThreshold(profile.notification_threshold ?? 55)
     setMorningHour(profile.morning_digest_hour ?? 8)
     setEveningHour(profile.evening_digest_hour ?? 19)
   }, [profile])
 
+  const gmailConnected = searchParams.get('gmail') === 'connected'
+
   useEffect(() => {
-    if (searchParams.get('gmail') === 'connected') {
-      setMessage('Gmail connected successfully. Digests will also be sent to your inbox.')
-      void refreshProfile()
-      const next = new URLSearchParams(searchParams)
-      next.delete('gmail')
-      setSearchParams(next, { replace: true })
-    }
-  }, [searchParams, setSearchParams, refreshProfile])
+    if (!gmailConnected) return
+    void refreshProfile()
+    const next = new URLSearchParams(searchParams)
+    next.delete('gmail')
+    setSearchParams(next, { replace: true })
+  }, [gmailConnected, refreshProfile, searchParams, setSearchParams])
 
   async function connectGmail() {
     setSaving(true)
@@ -155,27 +161,44 @@ export function PersonalizationSettings() {
     }
   }
 
+  const flushProfileSave = useCallback(async () => {
+    if (!user) return
+    const updates = pendingProfileRef.current
+    const keys = Object.keys(updates)
+    if (keys.length === 0) return
+
+    pendingProfileRef.current = {}
+    skipProfileSyncRef.current = true
+    setSaving(true)
+    setMessage(null)
+    try {
+      await updateProfileSettings(user.id, updates)
+      await refreshProfile()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to save settings')
+    } finally {
+      skipProfileSyncRef.current = false
+      setSaving(false)
+    }
+  }, [user, refreshProfile])
+
   const scheduleProfileSave = useCallback(
     (updates: Parameters<typeof updateProfileSettings>[1]) => {
       if (!user) return
+      pendingProfileRef.current = { ...pendingProfileRef.current, ...updates }
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
       saveTimerRef.current = setTimeout(() => {
-        void (async () => {
-          setSaving(true)
-          setMessage(null)
-          try {
-            await updateProfileSettings(user.id, updates)
-            await refreshProfile()
-          } catch (error) {
-            setMessage(error instanceof Error ? error.message : 'Failed to save settings')
-          } finally {
-            setSaving(false)
-          }
-        })()
-      }, 400)
+        void flushProfileSave()
+      }, 300)
     },
-    [user, refreshProfile],
+    [user, flushProfileSave],
   )
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    }
+  }, [])
 
   async function generateTelegramLink() {
     if (!user) return
@@ -292,6 +315,14 @@ export function PersonalizationSettings() {
                 setThreshold(value)
                 scheduleProfileSave({ notification_threshold: value })
               }}
+              onPointerUp={() => {
+                if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+                void flushProfileSave()
+              }}
+              onKeyUp={() => {
+                if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+                void flushProfileSave()
+              }}
               className="w-full"
             />
             <p className="text-xs text-muted-foreground">
@@ -368,6 +399,10 @@ export function PersonalizationSettings() {
                   setMorningHour(value)
                   scheduleProfileSave({ morning_digest_hour: value })
                 }}
+                onBlur={() => {
+                  if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+                  void flushProfileSave()
+                }}
               />
             </div>
             <div className="space-y-1">
@@ -382,6 +417,10 @@ export function PersonalizationSettings() {
                   const value = Number(event.target.value)
                   setEveningHour(value)
                   scheduleProfileSave({ evening_digest_hour: value })
+                }}
+                onBlur={() => {
+                  if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+                  void flushProfileSave()
                 }}
               />
             </div>

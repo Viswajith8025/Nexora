@@ -24,43 +24,61 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
   const [articles, setArticles] = React.useState<ArticleWithSource[]>([])
   const [loading, setLoading] = React.useState(false)
 
+  const closePalette = React.useCallback(() => {
+    setOpen(false)
+    setQuery('')
+    setArticles([])
+    setLoading(false)
+  }, [])
+
   React.useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
         setOpen((value) => !value)
       }
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key === 'Escape') closePalette()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [closePalette])
 
   React.useEffect(() => {
-    if (!open) {
+    if (open) return
+    const frame = requestAnimationFrame(() => {
       setQuery('')
       setArticles([])
-      return
-    }
-    if (!query.trim()) return
+      setLoading(false)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [open])
+
+  React.useEffect(() => {
+    if (!open || !query.trim()) return
 
     let cancelled = false
-    setLoading(true)
-    void fetchArticles({ search: query, pageSize: 8 }).then((result) => {
-      if (!cancelled) {
+    void fetchArticles({ search: query, pageSize: 8 })
+      .then((result) => {
+        if (cancelled) return
         setArticles(result.articles)
         setLoading(false)
-      }
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    void Promise.resolve().then(() => {
+      if (!cancelled) setLoading(true)
     })
 
     return () => { cancelled = true }
   }, [open, query])
 
   const actions: PaletteAction[] = [
-    { id: 'dash', label: 'Go to Dashboard', run: () => navigate(ROUTES.dashboard) },
-    { id: 'news', label: 'Go to News', run: () => navigate(ROUTES.news) },
-    { id: 'saved', label: 'Go to Saved', run: () => navigate(ROUTES.saved) },
-    { id: 'settings', label: 'Go to Settings', run: () => navigate(ROUTES.settings) },
+    { id: 'dash', label: 'Go to Dashboard', run: () => { void navigate(ROUTES.dashboard) } },
+    { id: 'news', label: 'Go to News', run: () => { void navigate(ROUTES.news) } },
+    { id: 'saved', label: 'Go to Saved', run: () => { void navigate(ROUTES.saved) } },
+    { id: 'settings', label: 'Go to Settings', run: () => { void navigate(ROUTES.settings) } },
   ]
 
   const filteredActions = actions.filter((action) =>
@@ -69,7 +87,7 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
 
   function run(action: () => void) {
     action()
-    setOpen(false)
+    closePalette()
   }
 
   return (
@@ -81,7 +99,7 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
             type="button"
             className="absolute inset-0"
             aria-label="Close command palette"
-            onClick={() => { setOpen(false) }}
+            onClick={closePalette}
           />
           <div className="relative z-10 w-full max-w-xl rounded-xl bg-ink-800 p-2 shadow-2xl ring-1 ring-ink-600/40">
             <input
@@ -101,7 +119,7 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
                       key={article.id}
                       type="button"
                       className="flex w-full rounded-md px-3 py-2 text-left text-sm hover:bg-ink-700"
-                      onClick={() => { run(() => navigate(ROUTES.newsDetail(article.id))) }}
+                      onClick={() => { run(() => { void navigate(ROUTES.newsDetail(article.id)) }) }}
                     >
                       <span className="line-clamp-1">{article.title}</span>
                     </button>
