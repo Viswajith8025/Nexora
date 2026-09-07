@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { analyzeArticle } from '../../supabase/functions/_shared/ai/analyzer.ts'
 import { GroqAPIError, GroqRateLimitError } from '../../supabase/functions/_shared/ai/groq-provider.ts'
+import { DEFAULT_GROQ_MODEL_CONFIG } from '../../supabase/functions/_shared/ai/types.ts'
 import { sampleArticle } from '../ai/fixtures.ts'
 import { parseFeed } from '../../supabase/functions/_shared/ingestion/rss-parser.ts'
 
@@ -10,6 +11,7 @@ describe('graceful degradation', () => {
   it('marks article failed when Groq is unavailable', async () => {
     const provider = {
       name: 'groq' as const,
+      models: DEFAULT_GROQ_MODEL_CONFIG,
       getModelForTask: () => 'llama-3.3-70b-versatile',
       complete: vi.fn(async () => {
         throw new GroqAPIError('Service unavailable')
@@ -26,6 +28,7 @@ describe('graceful degradation', () => {
   it('handles Groq rate limiting without crashing', async () => {
     const provider = {
       name: 'groq' as const,
+      models: DEFAULT_GROQ_MODEL_CONFIG,
       getModelForTask: () => 'llama-3.3-70b-versatile',
       complete: vi.fn(async () => {
         throw new GroqRateLimitError('Rate limit exceeded')
@@ -39,6 +42,7 @@ describe('graceful degradation', () => {
   it('retries on invalid AI JSON then fails gracefully', async () => {
     const provider = {
       name: 'groq' as const,
+      models: DEFAULT_GROQ_MODEL_CONFIG,
       getModelForTask: () => 'llama-3.3-70b-versatile',
       complete: vi.fn(async () => ({
         content: '{"invalid": true}',

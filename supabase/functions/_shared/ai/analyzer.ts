@@ -1,7 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { AIProvider } from './types.ts'
+import type { AIProvider, AIProviderName } from './types.ts'
 import { AI_LIMITS } from './types.ts'
-import type { GroqProvider } from './groq-provider.ts'
 import { parseArticleAnalysis } from './schema.ts'
 import type { ArticleAnalysis } from './schema.ts'
 import { SYSTEM_PROMPT, articleToDbUpdate, buildAnalysisPrompt } from './prompts.ts'
@@ -19,20 +18,24 @@ export type ArticleRecord = {
 }
 
 export type AnalyzeResult =
-  | { success: true; analysis: ArticleAnalysis; usage?: { promptTokens: number; completionTokens: number } }
-  | { success: false; error: string }
+  | {
+      success: true
+      analysis: ArticleAnalysis
+      provider: AIProviderName
+      model: string
+      usage?: { promptTokens: number; completionTokens: number }
+    }
+  | { success: false; error: string; provider?: AIProviderName; model?: string }
 
 export async function analyzeArticle(
-  provider: AIProvider & Partial<GroqProvider>,
+  provider: AIProvider,
   article: ArticleRecord,
 ): Promise<AnalyzeResult> {
-  if (typeof provider.getModelForTask !== 'function') {
-    return { success: false, error: 'AI provider missing getModelForTask' }
-  }
-
   const model = provider.getModelForTask('summary')
 
   let lastError = 'Unknown analysis error'
+  let lastProvider: AIProviderName = provider.name
+  let lastModel = model
 
   for (let attempt = 0; attempt <= AI_LIMITS.maxRetries; attempt++) {
     const strict = attempt > 0
@@ -49,11 +52,16 @@ export async function analyzeArticle(
         responseFormat: 'json',
       })
 
+      lastProvider = response.provider
+      lastModel = response.model
+
       const parsed = parseArticleAnalysis(response.content)
       if (parsed.success) {
         return {
           success: true,
           analysis: parsed.data,
+          provider: response.provider,
+          model: response.model,
           usage: response.usage
             ? {
                 promptTokens: response.usage.promptTokens,
@@ -70,19 +78,15 @@ export async function analyzeArticle(
     }
   }
 
-  return { success: false, error: lastError }
+  return { success: false, error: lastError, provider: lastProvider, model: lastModel }
 }
 
 export async function processSingleArticle(
   supabase: SupabaseClient,
-  provider: AIProvider & Partial<GroqProvider>,
+  provider: AIProvider,
   article: ArticleRecord,
 ): Promise<{ articleId: string; success: boolean; error?: string }> {
   const started = Date.now()
-  const model =
-    typeof provider.getModelForTask === 'function'
-      ? provider.getModelForTask('summary')
-      : 'unknown'
 
   await supabase
     .from('articles')
@@ -92,6 +96,8 @@ export async function processSingleArticle(
 
   const result = await analyzeArticle(provider, article)
   const durationMs = Date.now() - started
+  const providerName = result.provider ?? provider.name
+  const model = result.model ?? provider.getModelForTask('summary')
 
   if (!result.success) {
     await supabase
@@ -100,7 +106,7 @@ export async function processSingleArticle(
       .eq('id', article.id)
 
     await recordAIGeneration(supabase, {
-      provider: provider.name,
+      provider: providerName,
       model,
       task: 'article_analysis',
       articleId: article.id,
@@ -124,7 +130,7 @@ export async function processSingleArticle(
       .eq('id', article.id)
 
     await recordAIGeneration(supabase, {
-      provider: provider.name,
+      provider: providerName,
       model,
       task: 'article_analysis',
       articleId: article.id,
@@ -137,7 +143,7 @@ export async function processSingleArticle(
   }
 
   await recordAIGeneration(supabase, {
-    provider: provider.name,
+    provider: providerName,
     model,
     task: 'article_analysis',
     articleId: article.id,

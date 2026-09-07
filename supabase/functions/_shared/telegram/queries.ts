@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ArticleSummary } from './types.ts'
+import { extractSearchTerms } from './chat-feed.ts'
 
 const ARTICLE_FIELDS = `
   id,
@@ -141,6 +142,25 @@ export async function getPublishedArticles(
   const { data, error } = await query
   if (error) throw new Error(`Article query failed: ${error.message}`)
   return (data ?? []) as ArticleSummary[]
+}
+
+export async function resolveChatArticles(
+  supabase: SupabaseClient,
+  query: string,
+  limit = 8,
+): Promise<ArticleSummary[]> {
+  const trimmed = query.trim()
+  if (trimmed) {
+    const byFullQuery = await getPublishedArticles(supabase, { limit, search: trimmed })
+    if (byFullQuery.length > 0) return byFullQuery
+  }
+
+  for (const term of extractSearchTerms(query)) {
+    const byTerm = await getPublishedArticles(supabase, { limit, search: term })
+    if (byTerm.length > 0) return byTerm
+  }
+
+  return getPublishedArticles(supabase, { limit, minScore: 55 })
 }
 
 export async function getSavedArticles(

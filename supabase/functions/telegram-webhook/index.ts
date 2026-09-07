@@ -2,7 +2,7 @@ import { corsHeaders, createServiceClient, validateServerEnv } from '../_shared/
 import { validateTelegramWebhook } from '../_shared/telegram/auth.ts'
 import { TelegramClient } from '../_shared/telegram/client.ts'
 import { processTelegramUpdate } from '../_shared/telegram/router.ts'
-import { createGroqProvider } from '../_shared/ai/groq-provider.ts'
+import { createAIProvider, hasAIProviderConfigured } from '../_shared/ai/factory.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -33,16 +33,15 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const env = validateServerEnv({
+    const serverEnv = validateServerEnv({
       SUPABASE_URL: Deno.env.get('SUPABASE_URL'),
       SUPABASE_SERVICE_ROLE_KEY: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
     })
 
-    const supabase = createServiceClient(env)
+    const supabase = createServiceClient(serverEnv)
     const telegram = new TelegramClient({ botToken })
-    const groq = Deno.env.get('GROQ_API_KEY')
-      ? createGroqProvider(Deno.env.toObject())
-      : undefined
+    const runtimeEnv = Deno.env.toObject()
+    const groq = hasAIProviderConfigured(runtimeEnv) ? createAIProvider(runtimeEnv) : undefined
 
     const update = await req.json()
     const result = await processTelegramUpdate(supabase, telegram, update, groq)

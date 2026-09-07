@@ -4,6 +4,8 @@ import { analyzeArticle } from '../../supabase/functions/_shared/ai/analyzer.ts'
 import type { AIProvider } from '../../supabase/functions/_shared/ai/types.ts'
 import { validAnalysisJson, malformedAnalysisJson, sampleArticle } from './fixtures.ts'
 
+import { DEFAULT_GROQ_MODEL_CONFIG } from '../../supabase/functions/_shared/ai/types.ts'
+
 function createMockProvider(responses: string[]) {
   let call = 0
   const complete = vi.fn(async () => {
@@ -19,6 +21,7 @@ function createMockProvider(responses: string[]) {
 
   return {
     name: 'groq' as const,
+    models: DEFAULT_GROQ_MODEL_CONFIG,
     getModelForTask: () => 'llama-3.3-70b-versatile',
     complete,
   }
@@ -50,6 +53,8 @@ describe('analyzeArticle', () => {
   it('fails immediately on API error without storing output', async () => {
     const provider: AIProvider = {
       name: 'groq',
+      models: DEFAULT_GROQ_MODEL_CONFIG,
+      getModelForTask: () => 'llama-3.3-70b-versatile',
       complete: vi.fn(async () => {
         throw new Error('API down')
       }),

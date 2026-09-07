@@ -1,6 +1,6 @@
 import { corsHeaders, createServiceClient, validateServerEnv } from '../_shared/supabase.ts'
 import { validateCronAuth } from '../_shared/auth.ts'
-import { createGroqProvider } from '../_shared/ai/groq-provider.ts'
+import { createAIProvider, hasAIProviderConfigured } from '../_shared/ai/factory.ts'
 import { runArticleProcessing } from '../_shared/ai/process.ts'
 
 Deno.serve(async (req) => {
@@ -23,22 +23,26 @@ Deno.serve(async (req) => {
     })
   }
 
-  if (!Deno.env.get('GROQ_API_KEY')) {
-    return new Response(JSON.stringify({ error: 'GROQ_API_KEY is not configured' }), {
-      status: 500,
-      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
-    })
+  const env = Deno.env.toObject()
+  if (!hasAIProviderConfigured(env)) {
+    return new Response(
+      JSON.stringify({ error: 'GROQ_API_KEY or GEMINI_API_KEY must be configured' }),
+      {
+        status: 500,
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
+      },
+    )
   }
 
   try {
-    const env = validateServerEnv({
+    const serverEnv = validateServerEnv({
       SUPABASE_URL: Deno.env.get('SUPABASE_URL'),
       SUPABASE_SERVICE_ROLE_KEY: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
     })
 
-    const supabase = createServiceClient(env)
-    const provider = createGroqProvider(Deno.env.toObject())
-    const result = await runArticleProcessing(supabase, provider, Deno.env.toObject())
+    const supabase = createServiceClient(serverEnv)
+    const provider = createAIProvider(env)
+    const result = await runArticleProcessing(supabase, provider, env)
 
     return new Response(JSON.stringify({ success: true, result }), {
       status: 200,

@@ -1,7 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AIProvider } from './types.ts'
 import { AI_LIMITS } from './types.ts'
-import type { GroqProvider } from './groq-provider.ts'
 import { processSingleArticle, type ArticleRecord } from './analyzer.ts'
 
 const JOB_NAME = 'process-articles'
@@ -40,7 +39,7 @@ export async function loadUnprocessedArticles(
 
 export async function runArticleProcessing(
   supabase: SupabaseClient,
-  provider: AIProvider & Partial<GroqProvider>,
+  provider: AIProvider,
   env: Record<string, string | undefined> = {},
 ): Promise<ProcessArticlesResult> {
   const started = Date.now()

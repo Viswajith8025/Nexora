@@ -63,9 +63,12 @@ function createMockTelegram() {
   }
 }
 
+import { DEFAULT_GROQ_MODEL_CONFIG } from '../../supabase/functions/_shared/ai/types.ts'
+
 function createMockGroq() {
   return {
     name: 'groq' as const,
+    models: DEFAULT_GROQ_MODEL_CONFIG,
     getModelForTask: () => 'openai/gpt-oss-120b',
     complete: vi.fn(async () => ({
       content: '{"summary":"test","sections":[]}',

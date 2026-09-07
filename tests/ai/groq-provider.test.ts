@@ -2,10 +2,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   GroqProvider,
-  GroqAPIError,
-  GroqRateLimitError,
 } from '../../supabase/functions/_shared/ai/groq-provider.ts'
-import { DEFAULT_MODEL_CONFIG } from '../../supabase/functions/_shared/ai/types.ts'
+import { AIAPIError, AIRateLimitError, DEFAULT_MODEL_CONFIG } from '../../supabase/functions/_shared/ai/types.ts'
 
 const mockFetch = vi.fn()
 
@@ -55,7 +53,7 @@ describe('GroqProvider', () => {
         model: 'llama-3.3-70b-versatile',
         messages: [{ role: 'user', content: 'test' }],
       }),
-    ).rejects.toBeInstanceOf(GroqAPIError)
+    ).rejects.toBeInstanceOf(AIAPIError)
   })
 
   it('throws on rate limit', async () => {
@@ -66,7 +64,7 @@ describe('GroqProvider', () => {
         model: 'llama-3.3-70b-versatile',
         messages: [{ role: 'user', content: 'test' }],
       }),
-    ).rejects.toBeInstanceOf(GroqRateLimitError)
+    ).rejects.toBeInstanceOf(AIRateLimitError)
   })
 
   it('throws on timeout', async () => {
@@ -92,7 +90,7 @@ describe('GroqProvider', () => {
         model: 'llama-3.3-70b-versatile',
         messages: [{ role: 'user', content: 'test' }],
       }),
-    ).rejects.toBeInstanceOf(GroqAPIError)
+    ).rejects.toBeInstanceOf(AIAPIError)
   })
 
   it('selects economical model for classification', () => {

@@ -57,6 +57,21 @@ In Supabase Dashboard → Edge Functions → Secrets, verify:
 
 - `GROQ_API_KEY` is set
 - `GROQ_MODEL_CHEAP` and `GROQ_MODEL_DEEP` match the models you just tested
+- `GEMINI_API_KEY` is set (fallback when Groq rate-limits)
+- `GEMINI_MODEL_CHEAP` (`gemini-2.0-flash`) and `GEMINI_MODEL_DEEP` (`gemini-2.5-flash`)
+
+### 1d. Gemini fallback model (`GEMINI_MODEL_DEEP`)
+
+```bash
+curl -sS -X POST "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions" \
+  -H "Authorization: Bearer <GEMINI_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"Reply with exactly: ok"}],"max_tokens":16}'
+```
+
+**Expected:** HTTP `200`, JSON with `choices[0].message.content`.
+
+When both Groq and Gemini keys are set, `process-articles` uses Groq first and automatically retries on Gemini after `429` rate limits.
 
 ---
 
@@ -135,7 +150,7 @@ curl -sS -X POST "https://<PROJECT_REF>.supabase.co/functions/v1/process-article
 ```sql
 select processing_status, count(*) from public.articles group by 1;
 
-select provider, model, success, count(*), max(error_message)
+select provider, model, status, count(*), max(error)
 from public.ai_generations
 group by 1, 2, 3
 order by 4 desc;
@@ -144,15 +159,15 @@ order by 4 desc;
 **Expected:**
 
 - Articles move from `discovered` → `analyzed` / `published` (or `failed` with reason)
-- `ai_generations` rows with `success = true` and models matching your Groq secrets
+- `ai_generations` rows with `status = 'success'` and models matching your Groq secrets
 
 **Failure signatures:**
 
 | Symptom | Likely cause |
 |---------|----------------|
 | `GROQ_API_KEY is not configured` | Secret not set on Edge |
-| `success = false`, `model_not_found` | Step 1 not fixed |
-| `success = false`, JSON parse errors | Prompt/schema mismatch — check function logs |
+| `status = 'failure'`, `model_not_found` | Step 1 not fixed |
+| `status = 'failure'`, JSON parse errors | Prompt/schema mismatch — check function logs |
 | All `skipped` | No `discovered` articles left — run ingest again |
 
 ---
@@ -175,7 +190,7 @@ curl -sS -X POST "https://<PROJECT_REF>.supabase.co/functions/v1/evaluate-articl
 **Verify:**
 
 ```sql
-select round(relevance_score) as score, count(*)
+select round(final_score) as score, count(*)
 from public.article_user_relevance
 group by 1
 order by 1 desc;
@@ -250,11 +265,11 @@ Run after steps 2–6:
 ```sql
 select processing_status, count(*) from public.articles group by 1;
 
-select provider, model, success, count(*), max(error_message)
+select provider, model, status, count(*), max(error)
 from public.ai_generations
 group by 1, 2, 3;
 
-select round(relevance_score) as score, count(*)
+select round(final_score) as score, count(*)
 from public.article_user_relevance
 group by 1 order by 1 desc;
 ```
@@ -264,7 +279,7 @@ group by 1 order by 1 desc;
 | Check | Healthy signal |
 |-------|----------------|
 | `articles` | Mix of `published` / `analyzed`, not only `discovered` |
-| `ai_generations` | Mostly `success = true`, no persistent `model_not_found` |
+| `ai_generations` | Mostly `status = 'success'`, no persistent `model_not_found` |
 | `article_user_relevance` | Score distribution, not empty for active users |
 | Telegram | At least one successful `notification_deliveries` row |
 

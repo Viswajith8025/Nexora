@@ -182,7 +182,7 @@ export function formatHelp(): string {
   return `<b>Nexora — your dev intelligence assistant</b>
 
 <b>💬 Just chat</b>
-Send any message — ask about AI, frameworks, news, career, comparisons. I remember the last few messages.
+Send any message — tech, companies, career, news, or casual conversation. I answer from general knowledge and your ingested feed when relevant.
 
 /clear — Start a fresh conversation
 

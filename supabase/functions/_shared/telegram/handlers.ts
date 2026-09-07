@@ -15,6 +15,7 @@ import { parseCompareArgs } from './parser.ts'
 import {
   findProfileByChatId,
   getPublishedArticles,
+  resolveChatArticles,
   getSavedArticles,
   linkTelegramAccount,
   toggleQuietHours,
@@ -217,10 +218,7 @@ function intelligenceTask(
   return {
     messages: [{ text: isChat ? '💭 <i>Thinking…</i>' : '🔍 <i>Researching…</i>' }],
     research: async () => {
-      const articles = await getPublishedArticles(ctx.supabase, {
-        limit: 8,
-        search: options?.search ?? topic,
-      })
+      const articles = await resolveChatArticles(ctx.supabase, options?.search ?? topic)
 
       let memoryNote: string | undefined
       if (ctx.profile) {
@@ -333,7 +331,7 @@ async function handleCommand(
       return {
         messages: [
           {
-            text: '🆕 <b>Fresh chat started!</b>\n\nAsk me anything about tech, AI, frameworks, or career.',
+            text: '🆕 <b>Fresh chat started!</b>\n\nAsk me anything — tech, career, news, or just say hi.',
             keyboard: chatFollowUpKeyboard(),
           },
         ],
@@ -473,7 +471,7 @@ export async function dispatchCallbackAction(
       return {
         messages: [
           {
-            text: '🆕 <b>Fresh chat started!</b>\n\nAsk me anything about tech, AI, frameworks, or career.',
+            text: '🆕 <b>Fresh chat started!</b>\n\nAsk me anything — tech, career, news, or just say hi.',
             keyboard: chatFollowUpKeyboard(),
           },
         ],
@@ -482,7 +480,7 @@ export async function dispatchCallbackAction(
       return {
         messages: [
           {
-            text: '💬 <b>Ask me anything!</b>\n\nType a question like:\n• What is MCP?\n• Should I learn Rust?\n• What happened in AI today?',
+            text: '💬 <b>Ask me anything!</b>\n\nChat naturally — tech, companies, career, or casual questions.\n• What is Nvidia working on?\n• Should I learn Rust?\n• What happened in AI today?',
             keyboard: chatFollowUpKeyboard(),
           },
         ],

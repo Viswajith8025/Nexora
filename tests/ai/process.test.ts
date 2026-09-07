@@ -5,9 +5,12 @@ import { processSingleArticle } from '../../supabase/functions/_shared/ai/analyz
 import { loadUnprocessedArticles } from '../../supabase/functions/_shared/ai/process.ts'
 import { validAnalysisJson, sampleArticle } from './fixtures.ts'
 
+import { DEFAULT_GROQ_MODEL_CONFIG } from '../../supabase/functions/_shared/ai/types.ts'
+
 function createMockProvider(content = validAnalysisJson) {
   return {
     name: 'groq' as const,
+    models: DEFAULT_GROQ_MODEL_CONFIG,
     getModelForTask: () => 'llama-3.3-70b-versatile',
     complete: vi.fn(async () => ({
       content,

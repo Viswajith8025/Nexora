@@ -8,27 +8,28 @@ import {
   AIAPIError,
   AIRateLimitError,
   AI_LIMITS,
-  resolveGroqModelConfig,
+  resolveGeminiModelConfig,
 } from './types.ts'
 
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
+const GEMINI_API_URL =
+  'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'
 
-export type GroqProviderConfig = {
+export type GeminiProviderConfig = {
   apiKey: string
   models: ModelConfig
   fetchFn?: typeof fetch
   fetchTimeoutMs?: number
 }
 
-export class GroqProvider implements AIProvider {
-  readonly name = 'groq' as const
+export class GeminiProvider implements AIProvider {
+  readonly name = 'gemini' as const
   readonly models: ModelConfig
   private readonly apiKey: string
   private readonly fetchFn: typeof fetch
   private readonly fetchTimeoutMs: number
 
-  constructor(config: GroqProviderConfig) {
-    if (!config.apiKey) throw new Error('GROQ_API_KEY is required')
+  constructor(config: GeminiProviderConfig) {
+    if (!config.apiKey) throw new Error('GEMINI_API_KEY is required')
     this.apiKey = config.apiKey
     this.models = config.models
     this.fetchFn = config.fetchFn ?? fetch
@@ -51,7 +52,7 @@ export class GroqProvider implements AIProvider {
     const timeout = setTimeout(() => controller.abort(), this.fetchTimeoutMs)
 
     try {
-      const response = await this.fetchFn(GROQ_API_URL, {
+      const response = await this.fetchFn(GEMINI_API_URL, {
         method: 'POST',
         signal: controller.signal,
         headers: {
@@ -68,14 +69,14 @@ export class GroqProvider implements AIProvider {
       })
 
       if (response.status === 429) {
-        throw new AIRateLimitError('Groq rate limit exceeded', 'groq')
+        throw new AIRateLimitError('Gemini rate limit exceeded', 'gemini')
       }
 
       if (!response.ok) {
         const errorBody = await response.text()
         throw new AIAPIError(
-          `Groq API error ${response.status}: ${errorBody.slice(0, 500)}`,
-          'groq',
+          `Gemini API error ${response.status}: ${errorBody.slice(0, 500)}`,
+          'gemini',
           response.status,
         )
       }
@@ -84,13 +85,13 @@ export class GroqProvider implements AIProvider {
       const content = payload?.choices?.[0]?.message?.content
 
       if (!content || typeof content !== 'string') {
-        throw new AIAPIError('Groq API returned empty content', 'groq')
+        throw new AIAPIError('Gemini API returned empty content', 'gemini')
       }
 
       return {
         content,
         model: payload.model ?? request.model,
-        provider: 'groq',
+        provider: 'gemini',
         usage: payload.usage
           ? {
               promptTokens: payload.usage.prompt_tokens ?? 0,
@@ -104,37 +105,24 @@ export class GroqProvider implements AIProvider {
         throw error
       }
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new AIAPIError(`Groq request timed out after ${this.fetchTimeoutMs}ms`, 'groq')
+        throw new AIAPIError(
+          `Gemini request timed out after ${this.fetchTimeoutMs}ms`,
+          'gemini',
+        )
       }
-      throw new AIAPIError(error instanceof Error ? error.message : 'Groq request failed', 'groq')
+      throw new AIAPIError(error instanceof Error ? error.message : 'Gemini request failed', 'gemini')
     } finally {
       clearTimeout(timeout)
     }
   }
 }
 
-/** @deprecated use AIAPIError */
-export class GroqAPIError extends AIAPIError {
-  constructor(message: string) {
-    super(message, 'groq')
-    this.name = 'GroqAPIError'
-  }
-}
+export function createGeminiProvider(env: Record<string, string | undefined>): GeminiProvider {
+  const apiKey = env.GEMINI_API_KEY
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured')
 
-/** @deprecated use AIRateLimitError */
-export class GroqRateLimitError extends AIRateLimitError {
-  constructor(message: string) {
-    super(message, 'groq')
-    this.name = 'GroqRateLimitError'
-  }
-}
-
-export function createGroqProvider(env: Record<string, string | undefined>): GroqProvider {
-  const apiKey = env.GROQ_API_KEY
-  if (!apiKey) throw new Error('GROQ_API_KEY is not configured')
-
-  return new GroqProvider({
+  return new GeminiProvider({
     apiKey,
-    models: resolveGroqModelConfig(env),
+    models: resolveGeminiModelConfig(env),
   })
 }
